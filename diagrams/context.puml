@@ -1,0 +1,25 @@
+@startuml Context
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+Person(engineer, "Инженер", "Управляет устройствами и просматривает события через UI/API")
+
+System_Boundary("system", "IoT Platform") {
+    System(core, "IoT Core", "Микросервисная IoT-платформа для сбора, хранения, анализа и управления IoT данными")
+    System_Ext(device, "IoT-устройства", "Маршрутизаторы, отправляющие телеметрию в Kafka. Получают команды по gRPC")
+    System_Ext(keycloak, "Keycloak IAM", "Сервер аутентификации и авторизации (OIDC, OAuth2)")
+    System_Ext(grafana, "Observability Platform", "Система мониторинга и визуализации")
+    System_Ext(kafka_cluster, "Kafka Cluster", "Брокер сообщений")
+    System_Ext(camunda_bpm, "Camunda BPM", "Workflow и BPM движок")
+}
+
+Rel(engineer, core, "Работает через UI/API", "HTTPS + JWT")
+Rel(core, device, "Передача команд", "gRPC")
+Rel(device, kafka_cluster, "Отправка телеметрии", "Kafka (AVRO)")
+Rel(core, grafana, "Визуализация метрик, логов, трейсов", "Alloy, Prometheus, Loki, Tempo")
+Rel(kafka_cluster, core, "Взаимодействует с ядром платформы")
+Rel(engineer, grafana, "Просмотр метрик и логов", "HTTP (dashboards)")
+Rel(engineer, camunda_bpm, "Управление workflow", "HTTP")
+Rel(core, keycloak, "Аутентификация и авторизация", "OIDC")
+Rel(camunda_bpm, core, "Взаимодействует с ядром платформы")
+
+@enduml
