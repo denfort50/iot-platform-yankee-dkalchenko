@@ -30,7 +30,7 @@ System_Boundary(system, "IoT Microservice Platform") {
         Container_Ext(kafka1, "Kafka Broker 1", "Apache Kafka", "Брокер сообщений")
         Container_Ext(kafka2, "Kafka Broker 2", "Apache Kafka", "Брокер сообщений")
         Container_Ext(kafka3, "Kafka Broker 3", "Apache Kafka", "Брокер сообщений")
-        Container_Ext(schema_registry, "Schema Registry", "Confluent", "Управление Avro и Protobuf схемами")
+        Container_Ext(schema_registry, "Schema Registry", "Confluent", "Управление Avro схемами")
         Container_Ext(kafka_ui, "Kafka UI", "Web UI", "Веб-интерфейс управления Kafka")
         Container_Ext(kafka_exporter, "Kafka Exporter", "kafka-exporter", "Экспорт метрик Kafka-кластера")
     }
