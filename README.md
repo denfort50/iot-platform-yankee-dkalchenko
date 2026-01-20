@@ -58,11 +58,31 @@ make start
 Tempo, Loki, экспортеры, Clickhouse, Redis, Redis UI, Zookeeper, Kafka, Schema Registry, Kafka UI, MinIO);
 * стартует сервисы.
 
-## Вариант B - (чистый docker-compose)
+```bash
+# Остановить контейнеры
+make stop
+```
 
 ```bash
+# Удалить контейнеры и docker-тома
+make clean
+```
 
+## Вариант B - чистый docker compose
+
+```bash
+# Запустить контейнеры
 docker compose -f infrastructure/docker-compose.yaml up -d
+```
+
+```bash
+# Остановить контейнеры
+docker compose -f infrastructure/docker-compose.yaml stop
+```
+
+```bash
+# Удалить контейнеры и docker-тома
+docker compose -f infrastructure/docker-compose.yaml down -v
 ```
 
 ---
