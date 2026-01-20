@@ -397,7 +397,12 @@ services:
     networks:
       - iot-platform-net
     volumes:
-      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     healthcheck:
       test: [ "CMD", "wget", "--spider", "http://localhost:9090/-/healthy" ]
       interval: 10s
@@ -491,6 +496,8 @@ services:
       GF_METRICS_ENABLED: "true"
     volumes:
       - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health" ]
       interval: 10s
