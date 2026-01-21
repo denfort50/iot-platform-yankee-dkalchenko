@@ -55,7 +55,7 @@ make start
 Что делает:
 * поднимает инфраструктуру  
 (Keycloak + Postgres, Camunda + Postgres, Postgres для IoT, Prometheus, Grafana, Alloy, 
-Tempo, Loki, экспортеры, Clickhouse, Redis, Redis UI, Zookeeper, Kafka, Schema Registry, Kafka UI, MinIO);
+Tempo, Loki, экспортеры, Clickhouse, Redis, Redis UI, Kafka, Schema Registry, Kafka UI, MinIO);
 * стартует сервисы.
 
 ```bash
@@ -97,7 +97,6 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Redis                            | 6379        | Кэш и in-memory хранилище          |
 | Redis Insight                    | 5540        | Визуальный интерфейс Redis         |
 | Keycloak                         | 8080        | Dev-мод                            |
-| Zookeeper                        | 2181        | Координация Kafka-кластера         |
 | Kafka                            | 9092        | Брокер №1                          |
 | Kafka                            | 9093        | Брокер №2                          |
 | Kafka                            | 9094        | Брокер №3                          |

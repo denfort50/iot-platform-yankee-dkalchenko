@@ -26,7 +26,6 @@ System_Boundary(system, "IoT Microservice Platform") {
         Container_Ext(pg_exp_camunda, "Postgres Exporter (Camunda)", "postgres-exporter", "Экспорт метрик Postgres Camunda")
     }
     Container_Boundary(kafka_cluster, "Kafka Cluster") {
-        Container_Ext(zookeeper, "ZooKeeper", "Apache ZooKeeper", "Координация Kafka-кластера")
         Container_Ext(kafka1, "Kafka Broker 1", "Apache Kafka", "Брокер сообщений")
         Container_Ext(kafka2, "Kafka Broker 2", "Apache Kafka", "Брокер сообщений")
         Container_Ext(kafka3, "Kafka Broker 3", "Apache Kafka", "Брокер сообщений")
@@ -58,10 +57,6 @@ Rel(engineer, camunda_bpm, "Управление workflow", "HTTP")
 
 Rel(keycloak, keycloak_pg, "Чтение и запись данных", "JDBC/PostgreSQL")
 Rel(camunda, camunda_pg, "Чтение и запись данных", "JDBC/PostgreSQL")
-
-Rel(kafka1, zookeeper, "Координация", "TCP")
-Rel(kafka2, zookeeper, "Координация", "TCP")
-Rel(kafka3, zookeeper, "Координация", "TCP")
 
 Rel(schema_registry, kafka1, "Хранение схем", "Kafka Protocol")
 Rel(schema_registry, kafka2, "Хранение схем", "Kafka Protocol")

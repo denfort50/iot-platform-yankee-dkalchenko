@@ -132,43 +132,34 @@ services:
       timeout: 5s
       retries: 30
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-    networks:
-      - iot-platform-net
-    healthcheck:
-      test: [ "CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q 'Zookeeper version' || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   kafka1:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka1
     hostname: kafka1
     ports:
       - "9092:9092"
+      - "29092:29092"
     networks:
       - iot-platform-net
     volumes:
       - kafka1_data:/var/lib/kafka/data
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka1:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
       interval: 10s
       timeout: 5s
       retries: 5
-    depends_on:
-      zookeeper:
-        condition: service_healthy
 
   kafka2:
     image: confluentinc/cp-kafka:7.5.0
@@ -176,24 +167,28 @@ services:
     hostname: kafka2
     ports:
       - "9093:9093"
+      - "29093:29093"
     networks:
       - iot-platform-net
     volumes:
       - kafka2_data:/var/lib/kafka/data
     environment:
-      KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,CONTROLLER://kafka2:29093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9093", "--list" ]
       interval: 10s
       timeout: 5s
       retries: 5
-    depends_on:
-      zookeeper:
-        condition: service_healthy
 
   kafka3:
     image: confluentinc/cp-kafka:7.5.0
@@ -201,24 +196,28 @@ services:
     hostname: kafka3
     ports:
       - "9094:9094"
+      - "29094:29094"
     networks:
       - iot-platform-net
     volumes:
       - kafka3_data:/var/lib/kafka/data
     environment:
-      KAFKA_BROKER_ID: 3
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,CONTROLLER://kafka3:29094
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9094", "--list" ]
       interval: 10s
       timeout: 5s
       retries: 5
-    depends_on:
-      zookeeper:
-        condition: service_healthy
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
@@ -234,8 +233,6 @@ services:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
     depends_on:
       kafka1:
-        condition: service_healthy
-      zookeeper:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8081/subjects" ]
@@ -253,7 +250,6 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
     depends_on:
       kafka1:
