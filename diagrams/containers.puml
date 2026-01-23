@@ -11,6 +11,7 @@ System_Boundary(system, "IoT Microservice Platform") {
     Container_Boundary(iot, "Core") {
         ContainerDb(iot_pg, "IoT Platform Postgres", "PostgreSQL 17", "Основная реляционная БД платформы")
         Container(pg_exp_iot, "Postgres Exporter (IoT)", "postgres-exporter", "Экспорт метрик IoT Platform Postgres")
+        Container(redis_exp_iot, "Redis Exporter", "redis-exporter", "Экспорт метрик Redis")
         Container(redis, "Redis", "Redis", "Кэш и in-memory хранилище")
         ContainerDb(clickhouse, "ClickHouse", "ClickHouse", "Хранилище аналитических и временных рядов")
         Container(minio, "MinIO", "S3-compatible Object Storage", "Объектное хранилище файлов и данных")
@@ -73,11 +74,13 @@ Rel(pg_exp_camunda, camunda_pg, "Сбор метрик", "PostgreSQL")
 Rel(kafka_exporter, kafka1, "Сбор метрик", "Kafka Protocol")
 Rel(kafka_exporter, kafka2, "Сбор метрик", "Kafka Protocol")
 Rel(kafka_exporter, kafka3, "Сбор метрик", "Kafka Protocol")
+Rel(redis_exp_iot, redis, "Сбор метрик", "TCP/IP")
 
 Rel(prometheus, pg_exp_iot, "Scrape", "HTTP")
 Rel(prometheus, pg_exp_keycloak, "Scrape", "HTTP")
 Rel(prometheus, pg_exp_camunda, "Scrape", "HTTP")
 Rel(prometheus, kafka_exporter, "Scrape", "HTTP")
+Rel(prometheus, redis_exp_iot, "Scrape", "HTTP")
 
 Rel(alloy, loki, "Отправка логов", "HTTP")
 Rel(alloy, tempo, "Отправка трейсов", "OTLP/gRPC")
