@@ -1,0 +1,65 @@
+@startuml
+actor "IoT-device" as IoT order 1
+queue "events.raw.v1" as IT order 2
+participant "Kafka Listener" as KL order 3
+participant "Schema Registry" as SR order 4
+participant "Deduplication Service" as DS order 5
+participant "Redis" as Redis order 6
+participant "Event Persister" as EP order 7
+participant "Outbox Writer" as OW order 8
+database  "ClickHouse" as CH order  9
+database  "ClickHouse" as CH order  9
+participant "Lock Manager" as LM order 10
+participant "Outbox Reader" as OR order 11
+participant "Kafka Producer" as KP order 12
+queue "events.processed.v1" as OT order 13
+participant "Outbox Updater" as OU order 14
+
+IoT ->> IT: Отправка сырых событий
+== Events Collector Flow ==
+KL -> IT: Запрос нового события
+IT --> KL: Получение сырого события
+KL -> SR: Запрос Avro-схемы событий
+SR --> KL: Ответ с Avro-схемой
+KL -> EP: Передача на сохранение в ClickHouse
+EP -> CH: INSERT в основную таблицу
+CH --> EP: Okay
+EP --> KL: Событие сохранено
+KL --> IT: Коммит офсета
+KL -> DS: Передача события на дедупликацию
+DS -> Redis: Проверка и сохранение ID
+alt Событие новое
+    Redis --> DS: События с таким id не было
+    Redis --> Redis: Прихранивание id события
+    DS -> OW: Передача на сохранение в Outbox
+    OW -> CH: INSERT в Outbox
+    CH --> OW: Okay
+    OW --> DS: Дедуплицированное событие сохранено
+end
+alt Событие дубликат
+    Redis --> DS: Событие с таким id есть
+end
+
+== Outbox Processor Flow ==
+LM -> Redis: Захват lock
+alt Один инстанс в работе
+    Redis --> LM: Монитор занят
+end
+alt Ни один инстанс не в работе
+    Redis --> LM: Монитор не занят
+    LM -> OR: Разрешение на выборку
+    OR -> CH: SELECT * FROM OutboxЯ
+    CH --> OR: ResultSet с событиями
+    OR -> KP: Передача события для отправки
+    KP -> OT: Публикация обработанного события
+    OT --> KP: Okay
+    KP -> OU: Фиксация успешной отправки в Outbox
+    OU -> CH: DELETE event из Outbox
+    CH --> OU: Okay
+    OU --> KP: Таблица Outbox обработана и очищена
+    KP --> OR: Отправка событий завершена
+    OR --> LM: Работа закончена
+    LM -> Redis: Освобождение lock
+end
+
+@enduml
