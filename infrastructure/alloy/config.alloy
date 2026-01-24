@@ -56,7 +56,7 @@ otelcol.receiver.otlp "default" {
   }
   output {
     traces = [otelcol.exporter.otlp.tempo.input]
-    metrics = [otelcol.exporter.prometheus.default.input]
+    metrics = [otelcol.exporter.prometheus.metrics.input]
   }
 }
 
@@ -69,6 +69,33 @@ otelcol.exporter.otlp "tempo" {
   }
 }
 
-otelcol.exporter.prometheus "default" {
-  forward_to = []
+otelcol.exporter.prometheus "metrics" {
+  forward_to = [prometheus.remote_write.prometheus.receiver]
+}
+
+prometheus.remote_write "prometheus" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+prometheus.scrape "docker_services" {
+  scrape_interval = "15s"
+
+  targets = [
+    { __address__ = "keycloak:9000", __metrics_path__ = "/metrics", job = "keycloak" },
+    { __address__ = "grafana:3000", __metrics_path__ = "/metrics", job = "grafana" },
+    { __address__ = "alloy:9080",__metrics_path__ = "/metrics", job = "alloy" },
+    { __address__ = "loki:3100", __metrics_path__ = "/metrics", job = "loki" },
+    { __address__ = "tempo:3200", __metrics_path__ = "/metrics", job = "tempo" },
+    { __address__ = "iot-platform-postgres-exporter:9187", job = "iot-platform-postgres" },
+    { __address__ = "keycloak-postgres-exporter:9187", job = "keycloak-postgres" },
+    { __address__ = "camunda-postgres-exporter:9187", job = "camunda-postgres" },
+    { __address__ = "kafka-exporter:9308", job = "kafka" },
+    { __address__ = "redis-exporter:9121", job = "redis" },
+    { __address__ = "minio:9000", __metrics_path__ = "/minio/v2/metrics/cluster", job = "minio" },
+    { __address__ = "clickhouse:9363", job = "clickhouse" },
+  ]
+
+  forward_to = [prometheus.remote_write.prometheus.receiver]
 }
