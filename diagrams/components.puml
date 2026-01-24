@@ -1,0 +1,43 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Container_Ext(kafka, "Kafka", "Очереди событий", "events.raw.v1, events.processed.v1")
+Container_Ext(schema_registry, "Schema Registry", "Confluent", "Управление Avro схемами")
+Container(redis, "Redis", "In-memory DB", "Кэш для проверки дубликатов и распределенной блокировки")
+Container(ch, "ClickHouse", "OLAP база данных", "Хранит события и Outbox таблицу")
+
+Container(eventsCollector, "Events Collector Service", "Spring Boot", "Сервис получает события и сохраняет их") {
+    Component(kafkaListener, "Kafka Listener", "Читает события из топика events.raw.v1")
+    Component(deduplicationService, "Deduplication Service", "Проверяет дубликаты через Redis")
+    Component(eventPersister, "Event Persister", "Сохраняет события в ClickHouse")
+    Component(outboxWriter, "Outbox Writer", "Создает запись в таблице Outbox ClickHouse")
+}
+
+Container(outboxProcessor, "Outbox Processor Service", "Spring Boot", "Сервис отправки Outbox событий") {
+    Component(lockManager, "Lock Manager", "Захватывает и освобождает Redis lock")
+    Component(outboxReader, "Outbox Reader", "Выбирает неотправленные события из Outbox")
+    Component(kafkaProducer, "Kafka Producer", "Публикует события в events.processed.v1 топик Kafka")
+    Component(outboxUpdater, "Outbox Updater", "Удаляет отправленное события из Outbox")
+}
+
+Rel(kafka, kafkaListener, "Передает сырые события")
+Rel(kafkaListener, schema_registry, "Десериализует события по схемам Avro")
+Rel(kafkaListener, eventPersister, "Передает событие для сохранения в БД")
+Rel(eventPersister, ch, "INSERT в основную таблицу ClickHouse")
+Rel(kafkaListener, deduplicationService, "Передает событие на дедупликацию")
+Rel(deduplicationService, redis, "Проверка ID, сохранение ID")
+Rel(deduplicationService, outboxWriter, "Передает событие для сохранения в Outbox")
+Rel(outboxWriter, ch, "INSERT в Outbox")
+
+Rel(lockManager, redis, "Захват distributed lock")
+Rel(lockManager, outboxReader, "Разрешение на выборку")
+Rel(outboxReader, ch, "SELECT * FROM Outbox")
+Rel(outboxReader, kafkaProducer, "Передает события для отправки")
+Rel(kafkaProducer, kafka, "Публикация в ProcessedEvents")
+Rel(kafkaProducer, outboxUpdater, "Сообщает об успешной отправке")
+Rel(outboxUpdater, ch, "DELETE event FROM Outbox")
+Rel(lockManager, redis, "Освобождение lock (DEL/TTL)")
+
+@enduml
