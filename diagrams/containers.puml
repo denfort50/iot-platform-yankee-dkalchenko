@@ -11,7 +11,6 @@ System_Boundary(system, "IoT Microservice Platform") {
     Container_Boundary(iot, "IoT Core") {
         ContainerDb(iot_pg, "IoT Platform Postgres", "PostgreSQL 17", "Основная реляционная БД платформы")
         Container(ecs, "Events Collector Service", "Spring Boot", "Консьюмер необработанных событий из Kafka")
-        Container(opc, "Outbox Processor Service", "Spring Boot", "Продюсер обработанных событий в Kafka")
         Container(pg_exp_iot, "Postgres Exporter (IoT)", "postgres-exporter", "Экспорт метрик IoT Platform Postgres")
         Container(redis_exp_iot, "Redis Exporter", "redis-exporter", "Экспорт метрик Redis")
         Container(redis, "Redis", "Redis", "Кэш и in-memory хранилище")
@@ -51,7 +50,7 @@ Rel(device, kafka_cluster, "Сырые данные складируются в 
 Rel(kafka_cluster, ecs, "Сырые данные отправляются в сервис-коллектор", "Kafka Protocol")
 Rel(ecs, redis, "Дедупликация сырых данных", "TCP/IP")
 Rel(ecs, clickhouse, "Обработанные данные сохраняются в БД", "JDBC")
-Rel(opc, kafka_cluster, "Обработанные данные складируются в Kafka", "Kafka Protocol")
+Rel(ecs, kafka_cluster, "Обработанные данные складируются в Kafka", "Kafka Protocol")
 
 Rel(engineer, grafana, "Просматривает метрики, логи и трейсы", "HTTP")
 Rel(engineer, kafka_ui, "Администрирует Kafka", "HTTP")

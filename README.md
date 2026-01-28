@@ -18,7 +18,7 @@ Grafana + Alloy + Prometheus + Tempo + Loki, Keycloak, Camunda, ClickHouse, Post
 
 Файлы находятся в каталоге `diagrams/`:
 - **Context (уровень системы)** - [diagrams/context.puml](diagrams/context.puml)
-- **Container (уровень системы)** - [diagrams/containers.puml](diagrams/containers.puml)
+- **Container (уровень контейнеров)** - [diagrams/containers.puml](diagrams/containers.puml)
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -27,8 +27,10 @@ Grafana + Alloy + Prometheus + Tempo + Loki, Keycloak, Camunda, ClickHouse, Post
 ```
 iot-platform-yankee-dkalchenko/
 ├─ diagrams/
+│  ├─ diagrams/components.puml
 │  ├─ diagrams/containers.puml
 │  ├─ diagrams/context.puml
+│  ├─ diagrams/sequence.puml
 ├─ infrastructure/
 │  ├─ alloy/config.alloy
 │  ├─ databases/iot_platform/001_create_iot_platform.sql
