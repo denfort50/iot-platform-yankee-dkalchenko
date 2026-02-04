@@ -9,7 +9,7 @@ Container(redis, "Redis", "In-memory DB", "Кэш для проверки дуб
 Container(ch, "ClickHouse", "OLAP база данных", "Хранит события и Outbox таблицу")
 
 Container_Boundary(eventsCollector, "Events Collector Service", "Spring Boot", "Сервис получает события и сохраняет их") {
-    Component(eventSubscriber, "Event Subscriber", "Слушает сообщения с событиями из топика events.raw.v1")
+    Component(eventListener, "Event Listener", "Слушает сообщения с событиями из топика events.raw.v1")
     Component(eventService, "Event Service", "Выполняет бизнес-логику обработки событий")
     Component(eventRepository, "Event Repository", "Обеспечивает CRUD операции сырых событий в Clickhouse")
     Component(outboxRepository, "Outbox Repository", "Обеспечивает CRUD операции обработанных событий в Clickhouse")
@@ -20,9 +20,9 @@ Container_Boundary(eventsCollector, "Events Collector Service", "Spring Boot", "
     Component(eventPublisher, "Event Publisher", "Публикует события в events.processed.v1 топик Kafka")
 }
 
-Rel(kafka, eventSubscriber, "Передает сырые события")
-Rel(eventSubscriber, schema_registry, "Десериализует события по схемам Avro")
-Rel(eventSubscriber, eventService, "Передает сырое событие на обработку")
+Rel(kafka, eventListener, "Передает сырые события")
+Rel(eventListener, schema_registry, "Десериализует события по схемам Avro")
+Rel(eventListener, eventService, "Передает сырое событие на обработку")
 Rel(eventService, eventRepository, "Передает сырое событие на сохранение в БД")
 Rel(eventRepository, ch, "Вставка в основную таблицу сырых событий")
 Rel(eventService, deduplicationService, "Передает device_id на дедупликацию")

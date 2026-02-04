@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: powerful-event-sender
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        acks: all
+        retries: 3
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+      auto.register.schemas: false
+      use.latest.version: true
+
+app:
+  kafka:
+    topic:
+      events: events.v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true

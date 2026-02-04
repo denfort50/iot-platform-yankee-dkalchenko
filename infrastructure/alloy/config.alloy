@@ -79,6 +79,48 @@ prometheus.remote_write "prometheus" {
   }
 }
 
+// Отдельный discovery для events-collector-service: скрапим каждый инстанс по IP в сети,
+// чтобы в Prometheus попадали метрики со всех реплик (sum по инстансам даёт полное число событий).
+discovery.relabel "events_collector" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = ".*events-collector-service.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = ".*iot-platform-net.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_ip"]
+    regex         = "(.+)"
+    target_label  = "__address__"
+    replacement   = "${1}:9090"
+  }
+
+  rule {
+    target_label = "__metrics_path__"
+    replacement  = "/actuator/prometheus"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "events-collector-service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "instance"
+    replacement   = "${1}:9090"
+  }
+}
+
 prometheus.scrape "docker_services" {
   scrape_interval = "15s"
 
@@ -98,4 +140,10 @@ prometheus.scrape "docker_services" {
   ]
 
   forward_to = [prometheus.remote_write.prometheus.receiver]
+}
+
+prometheus.scrape "events_collector" {
+  scrape_interval = "10s"
+  targets         = discovery.relabel.events_collector.output
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
