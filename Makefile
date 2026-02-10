@@ -1,6 +1,6 @@
 DOCKER_COMPOSE = docker-compose -f infrastructure/docker-compose.yaml
-INFRA_SERVICES ?= iot-platform-postgres keycloak-postgres camunda-postgres clickhouse redis redis-insight keycloak kafka1 kafka2 kafka3 schema-registry kafka-ui minio camunda iot-platform-postgres-exporter keycloak-postgres-exporter camunda-postgres-exporter kafka-exporter prometheus grafana tempo loki alloy
-MODULE_TWO ?= events-collector-service simple-event-sender clickhouse redis redis-insight kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter prometheus grafana tempo loki alloy
+INFRA_SERVICES ?= iot-platform-postgres keycloak-postgres camunda-postgres clickhouse redis redis-insight keycloak kafka1 kafka2 kafka3 schema-registry kafka-ui minio camunda iot-platform-postgres-exporter keycloak-postgres-exporter camunda-postgres-exporter kafka-exporter redis-exporter prometheus grafana tempo loki alloy
+MODULE_TWO ?= events-collector-service simple-event-sender clickhouse redis redis-insight redis-exporter kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter prometheus grafana tempo loki alloy
 
 .PHONY: all stop clean logs infra infra-logs infra-stop rebuild
 

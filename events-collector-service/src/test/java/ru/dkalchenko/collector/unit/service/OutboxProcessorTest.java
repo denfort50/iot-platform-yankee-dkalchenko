@@ -1,5 +1,6 @@
 package ru.dkalchenko.collector.unit.service;
 
+import io.opentelemetry.api.OpenTelemetry;
 import org.apache.avro.generic.GenericRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,8 @@ class OutboxProcessorTest {
             null, null, 0, (short) 0, BATCH_SIZE, PUBLISHED_KEY, TTL);
 
     @Mock
+    OpenTelemetry openTelemetry;
+    @Mock
     OutboxRepository outboxRepository;
     @Mock
     InstanceRegistry instanceRegistry;
@@ -66,8 +69,8 @@ class OutboxProcessorTest {
         when(instanceRegistry.getTotalInstances()).thenReturn(total);
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
-        DeviceOutbox row1 = new DeviceOutbox("device-1", LocalDateTime.now(), 0, null);
-        DeviceOutbox row2 = new DeviceOutbox("device-2", LocalDateTime.now(), 0, null);
+        DeviceOutbox row1 = new DeviceOutbox("device-1", LocalDateTime.now(), 0, null, null, null);
+        DeviceOutbox row2 = new DeviceOutbox("device-2", LocalDateTime.now(), 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row1, row2))
                 .thenReturn(List.of());
@@ -79,7 +82,7 @@ class OutboxProcessorTest {
 
         outboxProcessor.processOutbox();
 
-        verify(devicePublisher, times(2)).publish(any(GenericRecord.class));
+        verify(devicePublisher, times(2)).publish(any(GenericRecord.class), isNull());
         verify(outboxRepository).markAsSent("device-1");
         verify(outboxRepository).markAsSent("device-2");
         verify(outboxRepository, never()).incrementAttempts(any(), any());
@@ -94,14 +97,14 @@ class OutboxProcessorTest {
         when(instanceRegistry.getTotalInstances()).thenReturn(total);
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
-        DeviceOutbox row = new DeviceOutbox("device-fail", LocalDateTime.now(), 0, null);
+        DeviceOutbox row = new DeviceOutbox("device-fail", LocalDateTime.now(), 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row))
                 .thenReturn(List.of());
 
         when(redisClient.sAddWithExpire(eq(PUBLISHED_KEY), eq(TTL), eq("device-fail"))).thenReturn(1L);
         when(deviceDtoAvroSchema.createRecord("device-fail")).thenReturn(genericRecord);
-        doThrow(new RuntimeException("Kafka unavailable")).when(devicePublisher).publish(genericRecord);
+        doThrow(new RuntimeException("Kafka unavailable")).when(devicePublisher).publish(eq(genericRecord), any());
 
         outboxProcessor.processOutbox();
 

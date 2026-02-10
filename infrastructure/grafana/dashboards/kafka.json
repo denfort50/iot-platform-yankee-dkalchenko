@@ -1922,7 +1922,7 @@
       }
     }
   ],
-  "refresh": "30s",
+  "refresh": "5s",
   "schemaVersion": 16,
   "style": "dark",
   "tags": [],
@@ -2054,7 +2054,7 @@
     ]
   },
   "timezone": "",
-  "title": "Kubernetes Kafka Topics",
+  "title": "Kafka Topics",
   "uid": "kafka-topics",
   "version": 1,
   "description": "Monitor Kafka topics and consumer groups"

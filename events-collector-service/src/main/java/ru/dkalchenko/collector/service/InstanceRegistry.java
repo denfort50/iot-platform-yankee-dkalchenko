@@ -30,7 +30,9 @@ public class InstanceRegistry {
 
     final StringRedisTemplate redisTemplate;
 
-    /** Id инстанса, сгенерированный при старте приклада. */
+    /**
+     * Id инстанса, сгенерированный при старте приклада.
+     */
     final String instanceId = UUID.randomUUID().toString();
 
     @Value("${collector.instance.heartbeat-ttl-seconds:90}")

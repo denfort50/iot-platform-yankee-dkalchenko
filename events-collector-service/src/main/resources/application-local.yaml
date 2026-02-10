@@ -1,5 +1,6 @@
+# Локальный запуск (инфра — Docker или локально). Порты совпадают с первым инстансом в docker-compose (8093, 9073).
 server:
-  port: 8091
+  port: 8093
 
 spring:
   data:
@@ -21,4 +22,12 @@ clickhouse:
 
 management:
   server:
-    port: 9071
+    port: 9073
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      # Alloy в Docker слушает на 4318; при пробросе порта — localhost:4318
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}

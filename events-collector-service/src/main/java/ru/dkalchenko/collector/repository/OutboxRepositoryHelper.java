@@ -20,7 +20,7 @@ import java.util.List;
 public final class OutboxRepositoryHelper {
 
     static final String FIND_PENDING_SQL = """
-            SELECT device_id, created_at, attempts, last_error
+            SELECT device_id, created_at, attempts, last_error, trace_id, span_id
             FROM collector.device_outbox
             WHERE cityHash64(device_id) % ? = ?
             ORDER BY created_at
@@ -45,7 +45,9 @@ public final class OutboxRepositoryHelper {
                     rs.getString("device_id"),
                     rs.getTimestamp("created_at").toLocalDateTime(),
                     rs.getInt("attempts"),
-                    rs.getString("last_error")
+                    rs.getString("last_error"),
+                    rs.getString("trace_id"),
+                    rs.getString("span_id")
             );
 
     private static final String COUNT_PENDING_SQL = """
@@ -66,6 +68,16 @@ public final class OutboxRepositoryHelper {
     /** Возвращает attempts или 0, если null. */
     public static int getAttemptsOrZero(DeviceOutbox outbox) {
         return outbox.attempts() != null ? outbox.attempts() : 0;
+    }
+
+    /** Для INSERT: trace_id (nullable). */
+    public static String getTraceIdOrNull(DeviceOutbox outbox) {
+        return outbox.traceId();
+    }
+
+    /** Для INSERT: span_id (nullable). */
+    public static String getSpanIdOrNull(DeviceOutbox outbox) {
+        return outbox.spanId();
     }
 
     public static List<DeviceOutbox> findPendingForShard(JdbcTemplate jdbcTemplate,

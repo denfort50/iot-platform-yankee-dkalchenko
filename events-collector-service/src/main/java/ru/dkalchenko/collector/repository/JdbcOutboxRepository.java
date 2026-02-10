@@ -30,7 +30,9 @@ public class JdbcOutboxRepository implements OutboxRepository {
                 outbox.deviceId(),
                 OutboxRepositoryHelper.toClickHouseTimestamp(outbox.createdAt()),
                 OutboxRepositoryHelper.getAttemptsOrZero(outbox),
-                OutboxRepositoryHelper.getLastErrorOrEmpty(outbox)
+                OutboxRepositoryHelper.getLastErrorOrEmpty(outbox),
+                OutboxRepositoryHelper.getTraceIdOrNull(outbox),
+                OutboxRepositoryHelper.getSpanIdOrNull(outbox)
         );
         log.trace("Saved outbox to ClickHouse: deviceId={}", outbox.deviceId());
     }

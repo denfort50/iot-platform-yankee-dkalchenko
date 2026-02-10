@@ -52,6 +52,8 @@ public class BatchedOutboxRepository extends AbstractBatchedRepository<DeviceOut
                 ps.setTimestamp(2, OutboxRepositoryHelper.toClickHouseTimestamp(o.createdAt()));
                 ps.setInt(3, OutboxRepositoryHelper.getAttemptsOrZero(o));
                 ps.setString(4, OutboxRepositoryHelper.getLastErrorOrEmpty(o));
+                ps.setString(5, OutboxRepositoryHelper.getTraceIdOrNull(o));
+                ps.setString(6, OutboxRepositoryHelper.getSpanIdOrNull(o));
             }
 
             @Override

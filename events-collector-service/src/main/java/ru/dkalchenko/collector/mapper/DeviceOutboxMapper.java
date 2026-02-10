@@ -20,6 +20,8 @@ public interface DeviceOutboxMapper {
     @Mapping(target = "createdAt", source = "timestamp", qualifiedByName = "timestampToLocalDateTime")
     @Mapping(target = "attempts", constant = "0")
     @Mapping(target = "lastError", ignore = true)
+    @Mapping(target = "traceId", ignore = true)
+    @Mapping(target = "spanId", ignore = true)
     DeviceOutbox toOutbox(DeviceEvent event);
 
     @Named("timestampToLocalDateTime")

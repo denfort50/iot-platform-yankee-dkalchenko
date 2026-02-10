@@ -5,8 +5,11 @@ distributor:
   receivers:
     otlp:
       protocols:
+        # Слушать на всех интерфейсах, чтобы Alloy (другой контейнер) мог слать трейсы по gRPC.
         grpc:
+          endpoint: 0.0.0.0:4317
         http:
+          endpoint: 0.0.0.0:4318
 
 ingester:
   trace_idle_period: 10s

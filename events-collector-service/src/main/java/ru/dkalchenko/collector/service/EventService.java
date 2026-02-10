@@ -1,5 +1,7 @@
 package ru.dkalchenko.collector.service;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -11,6 +13,7 @@ import ru.dkalchenko.collector.model.DeviceEvent;
 import ru.dkalchenko.collector.model.DeviceOutbox;
 import ru.dkalchenko.collector.repository.EventRepository;
 import ru.dkalchenko.collector.repository.OutboxRepository;
+import ru.dkalchenko.collector.tracing.TraceContextCapture;
 
 @Slf4j
 @Service
@@ -23,23 +26,60 @@ public class EventService {
     DeduplicationService deduplicationService;
     DeviceOutboxMapper deviceOutboxMapper;
     CollectorMetrics collectorMetrics;
+    Tracer tracer;
 
     /**
      * Обрабатывает событие: сохраняет в ClickHouse; в outbox пишет только при новом device_id за сутки (devices:seen).
-     * Метрики:
-     * - дубликаты считаются здесь (events.duplicates.total);
-     * - общее число обработанных событий считается на уровне listener'а (events.processed.total).
+     * Контекст корня (process-event) сохраняется в outbox, чтобы publish-device-kafka был дочерним тому же корню.
+     * Иерархия в Tempo: process-event → (save-event-clickhouse, deduplication-redis, save-device-outbox); process-event → publish-device-kafka.
      */
     public void process(DeviceEvent event) {
-        eventRepository.save(event);
+        Span processSpan = tracer.nextSpan().name("process-event")
+                .tag("device.id", event.deviceId() != null ? event.deviceId() : "")
+                .start();
+        try (Tracer.SpanInScope ignored = tracer.withSpan(processSpan)) {
+            runProcessWithSingleTrace(event);
+        } finally {
+            processSpan.end();
+        }
+    }
 
-        if (!deduplicationService.isNewDevice(event.deviceId())) {
-            collectorMetrics.incrementEventsDuplicate();
-            return;
+    private void runProcessWithSingleTrace(DeviceEvent event) {
+        String rootTraceId = TraceContextCapture.getCurrentTraceId(tracer);
+        String rootSpanId = TraceContextCapture.getCurrentSpanId(tracer);
+
+        Span saveSpan = tracer.nextSpan().name("save-event-clickhouse")
+                .tag("event.id", event.eventId() != null ? event.eventId() : "")
+                .tag("device.id", event.deviceId() != null ? event.deviceId() : "")
+                .tag("db.name", "clickhouse")
+                .tag("db.operation", "insert")
+                .start();
+        try (Tracer.SpanInScope _ = tracer.withSpan(saveSpan)) {
+            eventRepository.save(event);
+        } finally {
+            saveSpan.end();
         }
 
-        DeviceOutbox outbox = deviceOutboxMapper.toOutbox(event);
-        outboxRepository.save(outbox);
-        log.debug("New device, outbox saved: deviceId={}", event.deviceId());
+        Span dedupSpan = tracer.nextSpan().name("deduplication-redis").start();
+        boolean isNewDevice;
+        try (Tracer.SpanInScope _ = tracer.withSpan(dedupSpan)) {
+            isNewDevice = deduplicationService.isNewDevice(event.deviceId());
+            if (!isNewDevice) {
+                collectorMetrics.incrementEventsDuplicate();
+                return;
+            }
+        } finally {
+            dedupSpan.end();
+        }
+
+        Span outboxSaveSpan = tracer.nextSpan().name("save-device-outbox").start();
+        try (Tracer.SpanInScope _ = tracer.withSpan(outboxSaveSpan)) {
+            DeviceOutbox base = deviceOutboxMapper.toOutbox(event);
+            DeviceOutbox deviceOutbox = new DeviceOutbox(base, rootTraceId, rootSpanId);
+            outboxRepository.save(deviceOutbox);
+        } finally {
+            outboxSaveSpan.end();
+        }
+        log.debug("New device, deviceOutbox saved: deviceId={}", event.deviceId());
     }
 }

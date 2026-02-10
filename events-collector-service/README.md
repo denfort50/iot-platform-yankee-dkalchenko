@@ -60,6 +60,52 @@ Spring Boot Actuator и Micrometer (Prometheus, OTLP).
 
 ---
 
+## Мониторинг и трассировка
+
+Сервис экспортирует метрики в Prometheus и трейсы в Tempo. В составе инфраструктуры (Grafana, Alloy, Prometheus, Tempo) доступны дашборды и просмотр трассировок.
+
+### Метрики (Prometheus)
+
+- **Эндпоинт**: Spring Boot Actuator — `http://<host>:9090/actuator/prometheus` (в Docker порт 9090 пробрасывается на хост; при локальном запуске см. `management.server.port` в профиле).
+- **Сбор**: в Docker-окружении [Alloy](https://grafana.com/docs/alloy/latest/) обнаруживает контейнеры `events-collector-service`, скрапит каждый инстанс по адресу `:9090/actuator/prometheus` (интервал 10 с) и отдаёт метрики в Prometheus (remote write). Конфигурация — `infrastructure/alloy/config.alloy` (discovery и job `events-collector-service`).
+- **Кастомные метрики** сервиса перечислены выше в блоке «Кастомные метрики» (`CollectorMetrics`). Имена в Prometheus: `events_processed_total`, `events_duplicates_total`, `outbox_pending_count`, `outbox_publish_success_total`, `outbox_publish_fail_total` (с точками в коде они экспортируются с подчёркиваниями).
+
+### Трассировка (Tempo)
+
+Сервис строит один сквозной трейс на обработку события: от приёма до публикации в Kafka. Используются **Micrometer Tracing** и мост в OpenTelemetry (OTLP).
+
+- **Экспорт**: трейсы отправляются по OTLP HTTP. Endpoint задаётся в `management.otlp.tracing.endpoint`:
+  - **local**: `http://localhost:4318/v1/traces` (нужен локальный Alloy или иной OTLP-приёмник).
+  - **docker**: `http://alloy:4318/v1/traces` (при необходимости переопределяется через `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`).
+- **Цепочка**: приложение → OTLP HTTP → Alloy (4318) → Tempo (gRPC 4317). В Alloy: `otelcol.receiver.otlp` (HTTP 4318), экспорт — `otelcol.exporter.otlp.tempo`.
+- **Иерархия спанов** (один трейс = одно событие):
+  ```
+  process-event (корень)
+  ├── save-event-clickhouse
+  ├── deduplication-redis
+  ├── save-device-outbox
+  └── publish-device-kafka   (создаётся при публикации из outbox, позже по расписанию)
+  ```
+  Корневой спан **process-event** создаётся в `EventService.process()`. Его `traceId` и `spanId` сохраняются в `device_outbox` (поля `trace_id`, `span_id`). При публикации записи из outbox (`OutboxProcessor`) спан **publish-device-kafka** создаётся с родителем по этому контексту (`TraceContextCapture.runInContinuedTrace`), поэтому в Tempo все спаны оказываются в одном трейсе.
+- **Просмотр**: Grafana → **Explore** → источник **Tempo**. Поиск по `service.name=events-collector-service` или по `traceId`.
+
+![Трассировка в Tempo: process-event и дочерние спаны, publish-device-kafka выполняется позже по расписанию](img/Tracing.png)
+
+Семплирование задаётся в профиле (`management.tracing.sampling.probability`, в `application-docker.yaml` — `1.0`). Трейсинг для scheduled-задач (outbox, heartbeat) отключён в `TracingConfig`, чтобы в Tempo не попадали лишние трейсы.
+
+### Grafana
+
+- **Дашборд «Events Collector Service»** (`infrastructure/grafana/dashboards/events-collector.json`) провижинится при старте Grafana и содержит:
+  - скорость обработки событий и дубликатов (rate по `events_processed_total`, `events_duplicates_total`);
+  - число записей в outbox (`outbox_pending_count`);
+  - соотношение успешных/неуспешных публикаций из outbox (success/fail total и ratio);
+  - графики «processed vs duplicates», «duplicates ratio».
+- **Датасорсы** Prometheus и Tempo настраиваются в `infrastructure/grafana/provisioning/datasources/datasources.yaml` (при запуске через корневой `Makefile` или `docker compose` они уже подключены).
+
+При необходимости переопределения OTLP endpoint для трейсов укажите переменную окружения `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (полный URL, например `http://alloy:4318/v1/traces`).
+
+---
+
 ## Конфигурация
 
 Основные настройки задаются в `application.yaml` и профилях `application-local.yaml` / `application-docker.yaml`.

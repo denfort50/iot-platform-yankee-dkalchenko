@@ -3,7 +3,10 @@ val versions = mapOf(
 	"apacheAvroVersion" to "1.12.1",
 	"clickhouseVersion" to "0.9.6",
 	"mapstructVersion" to "1.6.3",
-	"liquibaseClickhouseVersion" to "0.9.0"
+	"liquibaseClickhouseVersion" to "0.9.0",
+	"awaitilityVersion" to "4.3.0",
+	"lombokMapstructBindingVersion" to "0.2.0",
+	"lz4Version" to "1.10.2"
 )
 
 plugins {
@@ -46,7 +49,9 @@ dependencies {
 	// OBSERVABILITY
 	runtimeOnly("io.micrometer:micrometer-registry-otlp")
 	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+	implementation("io.micrometer:micrometer-tracing-bridge-otel")
 	implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+	implementation("io.opentelemetry:opentelemetry-sdk")
 	implementation("io.micrometer:micrometer-observation")
 
 	// PERSISTENCE
@@ -60,7 +65,7 @@ dependencies {
 	compileOnly("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok")
 	annotationProcessor("org.mapstruct:mapstruct-processor:${versions["mapstructVersion"]}")
-	annotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
+	annotationProcessor("org.projectlombok:lombok-mapstruct-binding:${versions["lombokMapstructBindingVersion"]}")
 	runtimeOnly("org.projectlombok:lombok")
 
 	// TEST
@@ -70,7 +75,7 @@ dependencies {
 	testImplementation("org.testcontainers:testcontainers")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:kafka")
-	testImplementation("org.awaitility:awaitility:4.2.2")
+	testImplementation("org.awaitility:awaitility:${versions["awaitilityVersion"]}")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testCompileOnly("org.projectlombok:lombok")
 	testAnnotationProcessor("org.projectlombok:lombok")
@@ -79,7 +84,7 @@ dependencies {
 // Конфликт capability: org.lz4:lz4-java (liquibase, kafka) vs at.yawk.lz4:lz4-java (clickhouse-jdbc)
 configurations.all {
 	resolutionStrategy.capabilitiesResolution.withCapability("org.lz4:lz4-java") {
-		select("at.yawk.lz4:lz4-java:1.10.2")
+		select("at.yawk.lz4:lz4-java:${versions["lz4Version"]}")
 	}
 }
 

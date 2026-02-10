@@ -127,16 +127,15 @@ prometheus.scrape "docker_services" {
   targets = [
     { __address__ = "keycloak:9000", __metrics_path__ = "/metrics", job = "keycloak" },
     { __address__ = "grafana:3000", __metrics_path__ = "/metrics", job = "grafana" },
-    { __address__ = "alloy:9080",__metrics_path__ = "/metrics", job = "alloy" },
+    { __address__ = "alloy:9080", __metrics_path__ = "/metrics", job = "alloy" },
     { __address__ = "loki:3100", __metrics_path__ = "/metrics", job = "loki" },
     { __address__ = "tempo:3200", __metrics_path__ = "/metrics", job = "tempo" },
-    { __address__ = "iot-platform-postgres-exporter:9187", job = "iot-platform-postgres" },
-    { __address__ = "keycloak-postgres-exporter:9187", job = "keycloak-postgres" },
-    { __address__ = "camunda-postgres-exporter:9187", job = "camunda-postgres" },
-    { __address__ = "kafka-exporter:9308", job = "kafka" },
-    { __address__ = "redis-exporter:9121", job = "redis" },
+    { __address__ = "keycloak-postgres-exporter:9187", __metrics_path__ = "/metrics", job = "keycloak-postgres" },
+    { __address__ = "camunda-postgres-exporter:9187", __metrics_path__ = "/metrics", job = "camunda-postgres" },
+    { __address__ = "kafka-exporter:9308", __metrics_path__ = "/metrics", job = "kafka" },
+    { __address__ = "redis-exporter:9121", __metrics_path__ = "/metrics", job = "redis" },
     { __address__ = "minio:9000", __metrics_path__ = "/minio/v2/metrics/cluster", job = "minio" },
-    { __address__ = "clickhouse:9363", job = "clickhouse" },
+    { __address__ = "clickhouse:9363", __metrics_path__ = "/metrics", job = "clickhouse" },
   ]
 
   forward_to = [prometheus.remote_write.prometheus.receiver]
@@ -145,5 +144,26 @@ prometheus.scrape "docker_services" {
 prometheus.scrape "events_collector" {
   scrape_interval = "10s"
   targets         = discovery.relabel.events_collector.output
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+// HTTP health probing for schema-registry via blackbox exporter (/subjects, every 10s)
+prometheus.exporter.blackbox "schema_registry" {
+  // Minimal inline config: single http_2xx module with 5s timeout
+  config = "{ modules: { http_2xx: { prober: http, timeout: 5s } } }"
+
+  target {
+    name    = "schema-registry"
+    address = "http://schema-registry:8081/subjects"
+    module  = "http_2xx"
+    labels = {
+      service = "schema-registry",
+    }
+  }
+}
+
+prometheus.scrape "schema_registry_health" {
+  scrape_interval = "10s"
+  targets         = prometheus.exporter.blackbox.schema_registry.targets
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }

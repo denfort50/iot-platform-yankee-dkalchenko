@@ -2941,7 +2941,7 @@
       }
     }
   ],
-  "refresh": "10s",
+  "refresh": "5s",
   "schemaVersion": 19,
   "style": "dark",
   "tags": [
@@ -2953,8 +2953,8 @@
     "list": [
       {
         "current": {
-          "text": "default",
-          "value": "default"
+          "text": "Prometheus",
+          "value": "Prometheus"
         },
         "hide": 0,
         "label": "datasource",
@@ -3165,7 +3165,7 @@
     ]
   },
   "timezone": "",
-  "title": "PostgreSQL Database",
+  "title": "PostgreSQL",
   "uid": "000000039",
   "version": 1
 }

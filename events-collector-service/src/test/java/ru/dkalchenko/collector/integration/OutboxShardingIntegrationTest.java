@@ -37,12 +37,14 @@ class OutboxShardingIntegrationTest extends AbstractIntegrationTest {
         };
 
         for (String deviceId : deviceIds) {
-            DeviceOutbox outbox = new DeviceOutbox(deviceId, now, 0, null);
+            DeviceOutbox outbox = new DeviceOutbox(deviceId, now, 0, null, null, null);
             jdbcTemplate.update(OutboxRepository.INSERT_SQL,
                     outbox.deviceId(),
                     OutboxRepositoryHelper.toClickHouseTimestamp(outbox.createdAt()),
                     OutboxRepositoryHelper.getAttemptsOrZero(outbox),
-                    OutboxRepositoryHelper.getLastErrorOrEmpty(outbox)
+                    OutboxRepositoryHelper.getLastErrorOrEmpty(outbox),
+                    OutboxRepositoryHelper.getTraceIdOrNull(outbox),
+                    OutboxRepositoryHelper.getSpanIdOrNull(outbox)
             );
         }
 

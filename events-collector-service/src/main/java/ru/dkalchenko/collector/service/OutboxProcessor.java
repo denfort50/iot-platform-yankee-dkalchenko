@@ -1,5 +1,6 @@
 package ru.dkalchenko.collector.service;
 
+import io.opentelemetry.api.OpenTelemetry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -13,6 +14,7 @@ import ru.dkalchenko.collector.metrics.CollectorMetrics;
 import ru.dkalchenko.collector.model.DeviceOutbox;
 import ru.dkalchenko.collector.repository.OutboxRepository;
 import ru.dkalchenko.collector.properties.OutboxProperties;
+import ru.dkalchenko.collector.tracing.TraceContextCapture;
 
 import java.util.List;
 
@@ -26,6 +28,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class OutboxProcessor {
 
+    OpenTelemetry openTelemetry;
     OutboxRepository outboxRepository;
     InstanceRegistry instanceRegistry;
     RedisClient redisClient;
@@ -35,11 +38,11 @@ public class OutboxProcessor {
     CollectorMetrics collectorMetrics;
 
     /**
-     * Запуск по расписанию (по умолчанию раз в минуту):
+     * Запуск по расписанию (по умолчанию каждые 5 секунд):
      * забирает по batchSize записей для своего шарда, обрабатывает (идемпотентность SADD, Kafka, markAsSent),
      * повторяет пока таблица outbox для шарда не опустеет.
      */
-    @Scheduled(cron = "${collector.outbox.schedule:0 * * * * *}")
+    @Scheduled(cron = "${collector.outbox.schedule:*/5 * * * * *}")
     public void processOutbox() {
         int total = instanceRegistry.getTotalInstances();
         int myIndex = instanceRegistry.getMyIndex(); // 1..total, 0 если инстанс не в списке
@@ -68,6 +71,8 @@ public class OutboxProcessor {
 
     /**
      * Обрабатывает одну запись outbox. Возвращает true, если сообщение было отправлено в Kafka.
+     * Публикация выполняется в контексте продолжённого трейса (trace_id/span_id из outbox),
+     * чтобы в Tempo был один сквозной трейс от events.v1 до devices.v1.
      */
     private boolean processOne(DeviceOutbox row, long ttlSeconds) {
         String deviceId = row.deviceId();
@@ -84,7 +89,14 @@ public class OutboxProcessor {
         }
         GenericRecord record = deviceDtoAvroSchema.createRecord(deviceId);
         try {
-            devicePublisher.publish(record);
+            TraceContextCapture.runInContinuedTrace(
+                    openTelemetry,
+                    row.traceId(),
+                    row.spanId(),
+                    "publish-device-kafka",
+                    deviceId,
+                    () -> devicePublisher.publish(record, row.traceId())
+            );
         } catch (Exception e) {
             log.warn("Failed to publish device {}, will retry later: {}", deviceId, e.getMessage());
             redisClient.sRem(publishedKey, deviceId);

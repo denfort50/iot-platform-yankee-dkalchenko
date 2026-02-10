@@ -7,7 +7,7 @@ collector: # Настройки сервиса-коллектора событи
     seen-key: devices:seen # Ключ Redis (множество device_id)
     seen-ttl-seconds: 86400 # TTL ключа в Redis (сутки)
   outbox: # Фоновый процесс отправки device_outbox в Kafka
-    schedule: "0 * * * * *" # Cron: раз в минуту
+    schedule: "*/5 * * * * *" # Cron: каждые 5 секунд
     kafka-topic: devices.v1
     topic-partitions: 3
     topic-replicas: 2
@@ -24,6 +24,9 @@ collector: # Настройки сервиса-коллектора событи
     kafka-topic: events.v1
     topic-partitions: 3 # Партиции при создании топика
     topic-replicas: 2 # Реплики при создании топика
+
+schema-registry:
+  cache-capacity: 100 # Максимальное число схем в кэше CachedSchemaRegistryClient
 
 spring:
   application:
@@ -78,7 +81,7 @@ clickhouse:
 
 logging:
   level:
-    ru.dkalchenko.collector: INFO
+    ru.dkalchenko.collector: DEBUG
 
 management:
   endpoints:
@@ -99,3 +102,6 @@ management:
     metrics:
       export:
         enabled: false
+    tracing:
+      # local/default: localhost:4318 (Alloy); в Docker задаётся OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://alloy:4318/v1/traces
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
