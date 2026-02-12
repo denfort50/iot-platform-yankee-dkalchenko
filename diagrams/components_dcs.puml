@@ -1,0 +1,28 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt")
+Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
+Container(postgres, "PostgreSQL", "Реляционная база данных", "Хранит информацию об устройствах")
+
+Container_Boundary(deviceCollector, "Device Collector Service", "Spring Boot", "Сервис получает данные об устройствах и сохраняет их в шардированную БД") {
+    Component(deviceListener, "Device Listener", "Слушает сообщения с данными об устройствах из топика devices.v1")
+    Component(deviceService, "Device Service", "Выполняет бизнес-логику обработки данных")
+    Component(deviceRepository, "Device Repository", "Сохраняет устройства в базу данных")
+    Component(shardingSphereDriver, "Sharding Sphere Driver", "Взаимодействует с шардами БД")
+    Component(dltProducer, "Dead Letter Topic Producer", "При ошибках отправляет сообщение в DLT")
+}
+
+Rel(kafka, deviceListener, "Передается информация об устройствах из Kafka")
+Rel(deviceListener, schema_registry, "Десериализует сообщения по схеме Avro")
+Rel(deviceListener, deviceService, "Сообщения отправляются на обработку")
+Rel(deviceListener, dltProducer, "При ошибках в рамках обработки сообщения отдаются на отправку в DLT")
+Rel(dltProducer, kafka, "Сообщения отправляются в DLT")
+Rel(deviceService, deviceRepository, "Сообщения преобразуются в целевую модель данных и передаются на сохранение в БД")
+Rel(deviceRepository, shardingSphereDriver, "Запрос на сохранение через драйвер БД")
+Rel(shardingSphereDriver, postgres, "Сохранение данных об устройстве в определённый шард БД")
+
+
+@enduml
