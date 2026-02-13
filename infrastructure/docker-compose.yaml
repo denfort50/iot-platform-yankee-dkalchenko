@@ -58,7 +58,7 @@ services:
       retries: 20
 
   clickhouse:
-    image: clickhouse:25.12.4
+    image: clickhouse/clickhouse-server:25.12.4
     container_name: clickhouse
     environment:
       CLICKHOUSE_DB: clickhouse
@@ -160,6 +160,7 @@ services:
     ports:
       - "9092:9092"
       - "29092:29092"
+      - "19092:19092"  # EXTERNAL — для клиентов с хоста (localhost)
     networks:
       - iot-platform-net
     volumes:
@@ -168,14 +169,16 @@ services:
       CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka1:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka1:29092,EXTERNAL://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,EXTERNAL://localhost:19092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 10000
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
       interval: 10s
@@ -189,6 +192,7 @@ services:
     ports:
       - "9093:9093"
       - "29093:29093"
+      - "19093:19093"  # EXTERNAL — для клиентов с хоста (localhost)
     networks:
       - iot-platform-net
     volumes:
@@ -197,14 +201,16 @@ services:
       CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
       KAFKA_NODE_ID: 2
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,CONTROLLER://kafka2:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,CONTROLLER://kafka2:29093,EXTERNAL://0.0.0.0:19093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9093,EXTERNAL://localhost:19093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 10000
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9093", "--list" ]
       interval: 10s
@@ -218,6 +224,7 @@ services:
     ports:
       - "9094:9094"
       - "29094:29094"
+      - "19094:19094"  # EXTERNAL — для клиентов с хоста (localhost)
     networks:
       - iot-platform-net
     volumes:
@@ -226,14 +233,16 @@ services:
       CLUSTER_ID: q1Sh-9_ISia_zwGINzRvyQ
       KAFKA_NODE_ID: 3
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,CONTROLLER://kafka3:29094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,CONTROLLER://kafka3:29094,EXTERNAL://0.0.0.0:19094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9094,EXTERNAL://localhost:19094
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29092,2@kafka2:29093,3@kafka3:29094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 10000
     healthcheck:
       test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9094", "--list" ]
       interval: 10s
@@ -421,6 +430,7 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-remote-write-receiver'
     healthcheck:
       test: [ "CMD", "wget", "--spider", "http://localhost:9090/-/healthy" ]
       interval: 10s
@@ -521,6 +531,71 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  events-collector-service:
+    build:
+      context: ../events-collector-service
+      dockerfile: Dockerfile
+    image: events-collector-service:1.0.0
+    ports: # Диапазон портов допускает развёртывание 3-х экземпляров сервиса
+      - "8093-8095:8080"
+      - "9073-9075:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/clickhouse?compress=0
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  simple-event-sender:
+    build:
+      context: ../simple-event-sender
+      dockerfile: Dockerfile
+    image: simple-event-sender:1.0.0
+    ports:
+      - "8092:8080"
+      - "9072:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 networks:
   iot-platform-net:

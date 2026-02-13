@@ -5,5 +5,8 @@
 *.iml
 *.ipr
 out/
+**/bin/
+**/.gradle/
+**/build/
 !**/src/main/**/out/
 !**/src/test/**/out/

@@ -1,0 +1,33 @@
+# Локальный запуск (инфра — Docker или локально). Порты совпадают с первым инстансом в docker-compose (8093, 9073).
+server:
+  port: 8093
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:admin}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092,localhost:19093,localhost:19094}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+
+clickhouse:
+  datasource:
+    # compress=0 нужен для совместимости Liquibase с драйвером ClickHouse
+    url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/clickhouse?compress=0}
+    username: ${CLICKHOUSE_USER:admin}
+    password: ${CLICKHOUSE_PASSWORD:admin}
+
+management:
+  server:
+    port: 9073
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      # Alloy в Docker слушает на 4318; при пробросе порта — localhost:4318
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}

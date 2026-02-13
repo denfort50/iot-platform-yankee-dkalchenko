@@ -1,0 +1,47 @@
+@startuml
+queue "events.v1" as IT order 1
+participant "Event Subscriber" as ESS order 2
+participant "Event Service" as ESR order 3
+participant "Event Repository" as ER order 4
+participant "Deduplication Service" as DS order 5
+participant "Redis Client" as RC order 6
+participant "Outbox Repository" as OR order 7
+participant "Outbox Processor" as OP order 8
+participant "Instance Registry" as IR order 9
+participant "Device Publisher" as DP order 10
+queue "devices.v1" as OT order 11
+
+== Events Collecting Flow ==
+IT ->> ESS: Поступление сырого события
+ESS ->> ESR: Передача события на обработку
+ESR -> ER: Сохранение в таблицу device_events
+ER --> ESR: Okay
+ESR -> DS: Передача device_id на дедупликацию
+DS -> RC: Проверка и сохранение device_id
+alt device_id уникален
+    RC --> DS: Устройства с таким id не было
+    RC -> RC: Прихранивание device_id
+    DS --> ESR: не дубликат
+    ESR -> OR: Сохранение в таблицу device_outbox
+    OR --> ESR: Okay
+    ESR --> ESS: Событие обработано, устройство уникально
+    ESS --> IT: Коммит офсета
+end
+alt device_id дубликат
+    RC --> DS: Устройство с таким id есть
+    DS --> ESR: Публикация в целевой топик не требуется
+    ESR --> ESS: Событие обработано, устройство дубликат
+    ESS --> IT: Коммит офсета
+end
+
+== Outbox Processing Flow ==
+OP -> IR: Инициализация реестра экземпляров сервиса
+IR -> RC: Регистрация экземпляра сервиса и запрос диапазона выборки данных
+RC --> IR: Ответ с диапазоном назначенных строк
+IR --> OP: Передача диапазона назначенных строк
+OP -> OR: SELECT записей в рамках назначенного диапазона по 100 штук
+OR --> OP: ResultSet с устройствами
+OP -> DP: Отправка запроса на публикацию в целевой топик
+DP ->> OT: Публикация записи в целевой топик
+
+@enduml

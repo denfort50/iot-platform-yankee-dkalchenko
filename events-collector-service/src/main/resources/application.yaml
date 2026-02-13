@@ -1,0 +1,107 @@
+collector: # Настройки сервиса-коллектора событий
+  batch: # Батчевая запись событий в ClickHouse
+    enabled: false # true — вставка батчами, false — поштучно
+    batch-size: 100 # Сброс батча в БД при достижении количества сообщений
+    flush-interval-ms: 500 # Макс. задержка (мс) сброса в БД неполного батча
+  deduplication: # Дедупликация device_id перед записью в outbox
+    seen-key: devices:seen # Ключ Redis (множество device_id)
+    seen-ttl-seconds: 86400 # TTL ключа в Redis (сутки)
+  outbox: # Фоновый процесс отправки device_outbox в Kafka
+    schedule: "*/5 * * * * *" # Cron: каждые 5 секунд
+    kafka-topic: devices.v1
+    topic-partitions: 3
+    topic-replicas: 2
+    batch-size: 100 # Максимальное число записей для извлечения из БД на один инстанс сервиса
+    published-key: devices:published # Ключ Redis для идемпотентности отправки в Kafka
+    published-ttl-seconds: 604800 # TTL ключа идемпотентности в Redis (7 суток)
+  instance: # Регистрация инстанса для распределённого outbox
+    heartbeat-interval-ms: 30000 # Интервал продления TTL ключа в Redis (мс)
+    heartbeat-ttl-seconds: 90 # TTL ключа инстанса в Redis (с)
+  throughput: # Замер пропускной способности (транши, сообщений/сек)
+    enabled: true
+    burst-idle-timeout-ms: 1000 # Пауза без сообщений (мс), после которой транш считается завершённым
+  listener: # Топик Kafka для потребления сырых событий (events)
+    kafka-topic: events.v1
+    topic-partitions: 3 # Партиции при создании топика
+    topic-replicas: 2 # Реплики при создании топика
+
+schema-registry:
+  cache-capacity: 100 # Максимальное число схем в кэше CachedSchemaRegistryClient
+
+spring:
+  application:
+    name: events-collector-service
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      timeout: 3000
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: events-collector-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      heartbeat-interval: 3000
+      max-poll-records: 1
+      max-poll-interval: 60000
+      properties:
+        session.timeout.ms: 9000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+    properties:
+      spring.json.trusted.packages: "*"
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+      specific.avro.reader: true
+      auto.register.schemas: true
+      use.latest.version: true
+
+clickhouse:
+  datasource:
+    url: ${CLICKHOUSE_URL}
+    username: ${CLICKHOUSE_USER}
+    password: ${CLICKHOUSE_PASSWORD}
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+  pool:
+    maximum-pool-size: 10 # Максимальное количество соединений в пуле
+    minimum-idle: 2 # Минимальное количество простаивающих соединений в пуле
+    connection-timeout: 30000  # Таймаут установки соединения (мс)
+    idle-timeout: 600000 # Таймаут простаивающего соединения перед закрытием (мс)
+    max-lifetime: 1800000 # Максимальное время жизни соединения в пуле (мс)
+    leak-detection-threshold: 60000  # Порог времени (мс) для логирования возможных утечек соединений
+  socket-timeout: 300000 # Таймаут сокета для операций чтения/записи (мс)
+  connect-timeout: 30000 # Таймаут установки TCP-соединения с ClickHouse (мс)
+
+logging:
+  level:
+    ru.dkalchenko.collector: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  otlp:
+    logging:
+      export:
+        enabled: false
+    metrics:
+      export:
+        enabled: false
+    tracing:
+      # local/default: localhost:4318 (Alloy); в Docker задаётся OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://alloy:4318/v1/traces
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}

@@ -1,16 +1,25 @@
 # IoT Microservice Platform – проект, демонстрирующий архитектуру микросервисов для IoT (Internet of Things)
 
-**Стек**: Java 24, Go 1.20+, Spring Boot 3.5, Web MVC, WebFlux, Security (JWT, OAuth2 Resource Server), OpenFeign, MapStruct, 
-Lombok, Springdoc OpenAPI, Actuator + Micrometer Prometheus, OpenTelemetry (OTLP), Testcontainers, Docker Compose, 
-Grafana + Alloy + Prometheus + Tempo + Loki, Keycloak, Camunda, ClickHouse, PostgreSQL, MinIO, Redis, Kafka.
+## Технологический стек
+
+- **Языки**: Java 24, Go 1.20+
+- **Backend‑фреймворки**: Spring Boot 3.5 (Web MVC, WebFlux, Security — JWT, OAuth2 Resource Server)
+- **Интеграция и клиентские библиотеки**: OpenFeign
+- **Маппинг и удобство разработки**: MapStruct, Lombok, Springdoc OpenAPI
+- **Хранение данных**: PostgreSQL, ClickHouse, Redis, MinIO (S3‑совместимое объектное хранилище)
+- **Сообщения и очереди**: Kafka, Confluent Schema Registry
+- **Оркестрация и инфраструктура**: Docker Compose
+- **Безопасность и оркестрация процессов**: Keycloak, Camunda
+- **Наблюдаемость**: Spring Boot Actuator, Micrometer Prometheus, OpenTelemetry (OTLP), Grafana, Alloy, Prometheus, Tempo, Loki
+- **Тестирование и окружения**: Testcontainers
 ---
 
 ## Содержание
-* Архитектура
-* Состав репозитория
-* Быстрый старт
-* Порты и сервисы
-* Наблюдаемость
+- [Архитектура](#архитектура)
+- [Состав репозитория](#состав-репозитория)
+- [Быстрый старт](#быстрый-старт)
+- [Порты и сервисы](#порты-и-сервисы)
+- [Наблюдаемость](#наблюдаемость)
 
 ---
 ## Архитектура
@@ -18,7 +27,7 @@ Grafana + Alloy + Prometheus + Tempo + Loki, Keycloak, Camunda, ClickHouse, Post
 
 Файлы находятся в каталоге `diagrams/`:
 - **Context (уровень системы)** - [diagrams/context.puml](diagrams/context.puml)
-- **Container (уровень системы)** - [diagrams/containers.puml](diagrams/containers.puml)
+- **Container (уровень контейнеров)** - [diagrams/containers.puml](diagrams/containers.puml)
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -26,19 +35,40 @@ Grafana + Alloy + Prometheus + Tempo + Loki, Keycloak, Camunda, ClickHouse, Post
 ## Состав репозитория
 ```
 iot-platform-yankee-dkalchenko/
-├─ diagrams/
-│  ├─ diagrams/containers.puml
-│  ├─ diagrams/context.puml
-├─ infrastructure/
+├─ diagrams/                          # C4‑диаграммы архитектуры (PlantUML)
+│  ├─ components.puml
+│  ├─ containers.puml
+│  ├─ context.puml
+│  └─ sequence.puml
+├─ events-collector-service/          # Сервис сбора и обработки событий IoT
+│  ├─ src/main/java/ru/dkalchenko/collector/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  ├─ application-docker.yaml
+│  │  └─ db/changelog/...            # Liquibase‑миграции для ClickHouse
+│  ├─ Dockerfile
+│  └─ README.md
+├─ simple-event-sender/               # Сервис генерации тестовых событий в Kafka
+│  ├─ src/main/java/ru/dkalchenko/sender/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  └─ application-docker.yaml
+│  ├─ Dockerfile
+│  └─ README.md
+├─ infrastructure/                    # Инфраструктура: observability, БД и т.д.
 │  ├─ alloy/config.alloy
-│  ├─ databases/iot_platform/001_create_iot_platform.sql
+│  ├─ databases/iot_platform/...
 │  ├─ grafana/provisioning/{datasources,dashboards}
 │  ├─ loki/loki-config.yaml
 │  ├─ prometheus/prometheus.yaml
 │  ├─ tempo/tempo.yaml
 │  ├─ .env
 │  └─ docker-compose.yaml
-├─ Makefile
+├─ build.gradle.kts                   # Корневой Gradle‑конфиг (мультипроект)
+├─ settings.gradle.kts                # Настройка модулей Gradle
+├─ Makefile                           # Сценарии запуска/остановки инфраструктуры и сервисов
 └─ README.md
 ```
 
@@ -113,9 +143,8 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Grafana                          | 3000        | Dashboard + Explore                |
 | Tempo                            | 3200        | Хранилище трассировок (OTLP)       |
 | Loki                             | 3100        | Хранилище логов                    |
-
-Grafana **автопровиженит** датасорсы Prometheus/Loki/Tempo.
----
+| Events Collector Service         | 9071        | Сервис сбора и обработки событий   |
+| Simple Event Sender              | 8092        | REST API генерации событий         |
 
 ## Наблюдаемость
 

@@ -1,0 +1,30 @@
+# Запуск в Docker: хосты — имена сервисов в docker-compose, приложение слушает 8080 (main), 9090 (actuator).
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:admin}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka1:9092,kafka2:9093,kafka3:9094}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
+
+clickhouse:
+  datasource:
+    # compress=0 нужен для совместимости Liquibase с драйвером ClickHouse
+    url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse:8123/clickhouse?compress=0}
+    username: ${CLICKHOUSE_USER:admin}
+    password: ${CLICKHOUSE_PASSWORD:admin}
+
+management:
+  server:
+    port: 9090
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      # Трейсы в Alloy (OTLP HTTP), далее в Tempo
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://alloy:4318/v1/traces}

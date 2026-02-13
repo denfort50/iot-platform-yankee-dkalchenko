@@ -1,0 +1,15 @@
+### Сгенерировать события без дубликатов
+POST http://localhost:8092/v1/events/generate
+Content-Type: application/json
+
+{
+  "eventsAmt": 10000
+}
+
+### Сгенерировать события с дубликатами по deviceId
+POST http://localhost:8092/v1/events/generate-with-duplicates
+Content-Type: application/json
+
+{
+  "eventsAmt": 1000
+}

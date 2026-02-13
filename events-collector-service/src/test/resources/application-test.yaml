@@ -1,0 +1,60 @@
+collector:
+  batch:
+    enabled: false
+    batch-size: 10
+    flush-interval-ms: 500
+  deduplication:
+    seen-key: devices:seen
+    seen-ttl-seconds: 60
+  outbox:
+    schedule: "0 0 * * * *"
+    kafka-topic: devices.v1
+    topic-partitions: 1
+    topic-replicas: 1
+    batch-size: 10
+    published-key: devices:published
+    published-ttl-seconds: 60
+  instance:
+    heartbeat-interval-ms: 30000
+    heartbeat-ttl-seconds: 90
+  throughput:
+    enabled: false
+  listener:
+    kafka-topic: events.v1
+    topic-partitions: 1
+    topic-replicas: 1
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      timeout: 3000
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: events-collector-service-test
+      max-poll-records: 1
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+
+clickhouse:
+  datasource:
+    url: ${CLICKHOUSE_URL}
+    username: test
+    password: test
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+  pool:
+    maximum-pool-size: 5
+    minimum-idle: 1
+    connection-timeout: 30000
+    idle-timeout: 600000
+    max-lifetime: 1800000
+    leak-detection-threshold: 60000
+  socket-timeout: 300000
+  connect-timeout: 30000
+
+logging:
+  level:
+    ru.dkalchenko.collector: TRACE
+    org.testcontainers: WARN
