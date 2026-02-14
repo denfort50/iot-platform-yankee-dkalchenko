@@ -1,0 +1,34 @@
+@startuml
+queue "devices.v1" as IT order 1
+participant "Device Listener" as DL order 2
+participant "Device Service" as DS order 3
+participant "Device Repository" as DR order 4
+participant "Sharding Sphere Driver" as SSD order 5
+participant "Dead Letter Topic Producer" as DLTP order 6
+database "PostgreSQL Shards" as PS order 7
+queue "devices.v1.dlt" as OT order 8
+
+== Device Persistence Flow ==
+IT ->> DL: Поступление сообщения с данными об устройстве
+DL ->> DS: Передача сообщения на обработку
+DS -> DR: Передача сообщения на сохранение
+DR -> SSD: Указание драйверу сохранить сообщение в таблицу
+SSD -> PS: Сохранение записи в определённый шард
+alt Успешное сохранение
+    PS --> SSD: Success
+    SSD --> DR: Запись добавлена на шард БД
+    DR --> DS: "Передай выше"
+    DS --> DL: Событие успешно обработано и сохранено
+    DL --> IT: Коммит офсета
+end
+alt Неуспешное сохранение
+    PS --> SSD: Error
+    SSD --> DR: Произошла ошибка при сохранении
+    DR --> DS: "Передай выше"
+    DS --> DL: Сохранить сообщение в БД не удалось
+    DS ->> DLTP: Передача сообщения на отправку в Kafka
+    DLTP ->> OT: Отправка неудачно обработанного сообщения в DLT
+    DLTP --> IT: Коммит офсета
+end
+
+@enduml

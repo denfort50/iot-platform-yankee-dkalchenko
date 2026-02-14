@@ -1,6 +1,6 @@
 @startuml
 queue "events.v1" as IT order 1
-participant "Event Subscriber" as ESS order 2
+participant "Event Listener" as EL order 2
 participant "Event Service" as ESR order 3
 participant "Event Repository" as ER order 4
 participant "Deduplication Service" as DS order 5
@@ -12,8 +12,8 @@ participant "Device Publisher" as DP order 10
 queue "devices.v1" as OT order 11
 
 == Events Collecting Flow ==
-IT ->> ESS: Поступление сырого события
-ESS ->> ESR: Передача события на обработку
+IT ->> EL: Поступление сырого события
+EL ->> ESR: Передача события на обработку
 ESR -> ER: Сохранение в таблицу device_events
 ER --> ESR: Okay
 ESR -> DS: Передача device_id на дедупликацию
@@ -24,14 +24,14 @@ alt device_id уникален
     DS --> ESR: не дубликат
     ESR -> OR: Сохранение в таблицу device_outbox
     OR --> ESR: Okay
-    ESR --> ESS: Событие обработано, устройство уникально
-    ESS --> IT: Коммит офсета
+    ESR --> EL: Событие обработано, устройство уникально
+    EL --> IT: Коммит офсета
 end
 alt device_id дубликат
     RC --> DS: Устройство с таким id есть
     DS --> ESR: Публикация в целевой топик не требуется
-    ESR --> ESS: Событие обработано, устройство дубликат
-    ESS --> IT: Коммит офсета
+    ESR --> EL: Событие обработано, устройство дубликат
+    EL --> IT: Коммит офсета
 end
 
 == Outbox Processing Flow ==

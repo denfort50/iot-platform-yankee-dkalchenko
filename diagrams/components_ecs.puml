@@ -3,13 +3,13 @@
 
 LAYOUT_WITH_LEGEND()
 
-Container_Ext(kafka, "Kafka", "Очереди событий", "events.raw.v1, events.processed.v1")
-Container_Ext(schema_registry, "Schema Registry", "Confluent", "Управление Avro схемами")
+Container_Ext(kafka, "Kafka", "Очереди событий", "events.v1, devices.v1")
+Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
 Container(redis, "Redis", "In-memory DB", "Кэш для проверки дубликатов и распределенных блокировок")
 Container(ch, "ClickHouse", "OLAP база данных", "Хранит события и Outbox таблицу")
 
 Container_Boundary(eventsCollector, "Events Collector Service", "Spring Boot", "Сервис получает события и сохраняет их") {
-    Component(eventListener, "Event Listener", "Слушает сообщения с событиями из топика events.raw.v1")
+    Component(eventListener, "Event Listener", "Слушает сообщения с событиями из топика events.v1")
     Component(eventService, "Event Service", "Выполняет бизнес-логику обработки событий")
     Component(eventRepository, "Event Repository", "Обеспечивает CRUD операции сырых событий в Clickhouse")
     Component(outboxRepository, "Outbox Repository", "Обеспечивает CRUD операции обработанных событий в Clickhouse")
@@ -17,7 +17,7 @@ Container_Boundary(eventsCollector, "Events Collector Service", "Spring Boot", "
     Component(redisClient, "Redis Client", "Взаимодействует с Redis")
     Component(outboxProcessor, "Outbox Processor", "Управляет отправкой событий в целевой топик Kafka")
     Component(instanceRegistry , "Instance Registry", "Реестр экземпляров сервиса")
-    Component(eventPublisher, "Event Publisher", "Публикует события в events.processed.v1 топик Kafka")
+    Component(devicePublisher, "Device Publisher", "Публикует устройства в devices.v1 топик Kafka")
 }
 
 Rel(kafka, eventListener, "Передает сырые события")
@@ -28,14 +28,14 @@ Rel(eventRepository, ch, "Вставка в основную таблицу сы
 Rel(eventService, deduplicationService, "Передает device_id на дедупликацию")
 Rel(deduplicationService, redisClient, "Дедуплицирует device_id")
 Rel(redisClient, redis, "Проверка ID на предмет наличия дубликата / сохранение ID")
-Rel(eventService, outboxRepository, "Передает событие для сохранения в таблицу Outbox")
-Rel(outboxRepository, ch, "Вставка событий в Outbox таблицу")
+Rel(eventService, outboxRepository, "Передает данные для сохранения в таблицу Outbox")
+Rel(outboxRepository, ch, "Вставка данных в Outbox таблицу")
 Rel(outboxProcessor, instanceRegistry, "Взаимодействует с реестром инстансов сервиса для определения диапазона записей на отправку")
 Rel(instanceRegistry, redisClient, "Передает данные клиенту Redis")
 Rel(redisClient, redis, "Сохраняет/сверяет данные об инстансах сервиса в Redis")
 Rel(outboxProcessor, outboxRepository, "Запрашивает записи на слое персистенции")
 Rel(outboxRepository, ch, "Запрашивает записи из БД для отправки в Kafka")
-Rel(outboxProcessor, eventPublisher, "Передает события на отправку в Kafka")
-Rel(eventPublisher, kafka, "Отправляет outbox события в Kafka")
+Rel(outboxProcessor, devicePublisher, "Передает данные на отправку в Kafka")
+Rel(devicePublisher, kafka, "Отправляет outbox записи в Kafka")
 
 @enduml
