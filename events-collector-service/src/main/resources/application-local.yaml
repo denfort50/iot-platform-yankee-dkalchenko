@@ -5,20 +5,20 @@ server:
 spring:
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:admin}
+      host: localhost
+      port: 6379
+      password: admin
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092,localhost:19093,localhost:19094}
+    bootstrap-servers: localhost:19092,localhost:19093,localhost:19094
     properties:
-      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+      schema.registry.url: http://localhost:8081
 
 clickhouse:
   datasource:
     # compress=0 нужен для совместимости Liquibase с драйвером ClickHouse
-    url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/clickhouse?compress=0}
-    username: ${CLICKHOUSE_USER:admin}
-    password: ${CLICKHOUSE_PASSWORD:admin}
+    url: jdbc:clickhouse://localhost:8123/clickhouse?compress=0
+    username: admin
+    password: admin
 
 management:
   server:
@@ -30,4 +30,4 @@ management:
   otlp:
     tracing:
       # Alloy в Docker слушает на 4318; при пробросе порта — localhost:4318
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      endpoint: http://localhost:4318/v1/traces

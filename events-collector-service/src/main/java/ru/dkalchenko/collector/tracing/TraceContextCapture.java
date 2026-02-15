@@ -18,7 +18,7 @@ import org.springframework.lang.Nullable;
 @UtilityClass
 public class TraceContextCapture {
 
-    private static final String INSTRUMENTATION_SCOPE = "ru.dkalchenko.collector";
+    private static final String INSTRUMENTATION_SCOPE = "ru.dkalchenko.events.collector";
 
     /**
      * Возвращает trace_id текущего спана или null.

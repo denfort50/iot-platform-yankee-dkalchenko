@@ -3,9 +3,10 @@
 ### Технологический стек
 
 - **Язык**: Java 24
-- **Фреймворк**: Spring Boot 3.5 (WebFlux, Validation)
+- **Фреймворк**: Spring Boot 3.5 (WebFlux, Validation, Actuator)
 - **Интеграция с Kafka**: Reactor Kafka, Spring for Apache Kafka
 - **Сериализация**: Apache Avro, Confluent Schema Registry
+- **Avro-схемы**: зависимость `iot-avro-schemas` (DeviceEvent)
 
 ### Описание
 
@@ -22,7 +23,7 @@
 - **Реактивная отправка в Kafka** (`reactor-kafka`, `KafkaSender`).
 - **Avro и Schema Registry**:
   - сериализация через `KafkaAvroSerializer`;
-  - загрузка схемы из `classpath:avro/DeviceEvent.avsc`.
+  - схема DeviceEvent загружается из зависимости `iot-avro-schemas` (`classpath:avro/DeviceEvent.avsc`).
 
 ---
 
@@ -39,7 +40,7 @@
   - по умолчанию (docker): `http://schema-registry:8081`
   - локально по умолчанию: `http://localhost:8081`
 - **Топик**:
-  - `app.kafka.topic.events = events.v1`
+  - `app.kafka.topic.events` (по умолчанию `events.v1`)
 
 **Переменные окружения:**
 
@@ -110,28 +111,30 @@
 
 ### Сборка
 
-Из корня `simple-event-sender`:
+Из корня репозитория:
 
 ```bash
+./gradlew :simple-event-sender:clean build
+```
 
+Из каталога `simple-event-sender`:
+
+```bash
 ./gradlew clean build
 ```
 
-На Windows (PowerShell):
-
-```powershell
-.\gradlew clean build
-```
+На Windows (PowerShell): `.\gradlew clean build` (из каталога модуля).
 
 ### Запуск через Gradle (профиль `local`)
 
-```bash
+Из каталога `simple-event-sender`: `./gradlew bootRun`, или из корня репозитория: `./gradlew :simple-event-sender:bootRun`.
 
+```bash
 ./gradlew bootRun
 ```
 
-- Профиль: `local` (устанавливается в `build.gradle.kts`).
-- HTTP API будет доступно по адресу: `http://localhost:8092`.
+- Профиль: `local` (задаётся в `build.gradle.kts`).
+- HTTP API: `http://localhost:8092`.
 - По умолчанию:
   - `KAFKA_BOOTSTRAP_SERVERS=localhost:19092,localhost:19093,localhost:19094`
   - `SCHEMA_REGISTRY_URL=http://localhost:8081`
@@ -157,7 +160,6 @@ export SCHEMA_REGISTRY_URL="http://localhost:8081"
 ### Генерация N событий
 
 ```bash
-
 curl -X POST "http://localhost:8092/v1/events/generate" \
   -H "Content-Type: application/json" \
   -d '{"eventsAmt": 1000}'
@@ -166,7 +168,6 @@ curl -X POST "http://localhost:8092/v1/events/generate" \
 ### Генерация N событий с дубликатами
 
 ```bash
-
 curl -X POST "http://localhost:8092/v1/events/generate-with-duplicates" \
   -H "Content-Type: application/json" \
   -d '{"eventsAmt": 1000}'

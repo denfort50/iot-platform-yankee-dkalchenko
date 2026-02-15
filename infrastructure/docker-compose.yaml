@@ -1,20 +1,57 @@
 services:
-  iot-platform-postgres:
+  postgres-shard0:
     image: postgres:17-alpine
-    container_name: iot-platform-postgres
+    container_name: postgres-shard0
     environment:
-      POSTGRES_USER: ${IOT_PLATFORM_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${IOT_PLATFORM_POSTGRES_PASSWORD}
-      POSTGRES_DB: iot_platform
+      POSTGRES_USER: ${DEVICE_COLLECTOR_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEVICE_COLLECTOR_POSTGRES_PASSWORD}
+      POSTGRES_DB: iot_platform_shard0
     volumes:
-      - ./databases/iot_platform:/docker-entrypoint-initdb.d:ro
-      - iot-platform-postgres-data:/var/lib/postgresql/data
+      - postgres-shard0-data:/var/lib/postgresql/data
     ports:
-      - "5434:5432"
+      - "5436:5432"
     networks:
       - iot-platform-net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${IOT_PLATFORM_POSTGRES_USER} -p 5432" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DEVICE_COLLECTOR_POSTGRES_USER} -p 5432" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  postgres-shard1:
+    image: postgres:17-alpine
+    container_name: postgres-shard1
+    environment:
+      POSTGRES_USER: ${DEVICE_COLLECTOR_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEVICE_COLLECTOR_POSTGRES_PASSWORD}
+      POSTGRES_DB: iot_platform_shard1
+    volumes:
+      - postgres-shard1-data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DEVICE_COLLECTOR_POSTGRES_USER} -p 5432" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  postgres-shard2:
+    image: postgres:17-alpine
+    container_name: postgres-shard2
+    environment:
+      POSTGRES_USER: ${DEVICE_COLLECTOR_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEVICE_COLLECTOR_POSTGRES_PASSWORD}
+      POSTGRES_DB: iot_platform_shard2
+    volumes:
+      - postgres-shard2-data:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DEVICE_COLLECTOR_POSTGRES_USER} -p 5432" ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -106,6 +143,12 @@ services:
       - redis-insight:/data
     networks:
       - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('net').connect(5540,'127.0.0.1',()=>process.exit(0)).on('error',()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
   redis-exporter:
     image: bitnami/redis-exporter:latest
@@ -284,10 +327,6 @@ services:
     depends_on:
       kafka1:
         condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      kafka3:
-        condition: service_healthy
       schema-registry:
         condition: service_healthy
     healthcheck:
@@ -337,16 +376,52 @@ services:
       timeout: 5s
       retries: 5
 
-  iot-platform-postgres-exporter:
+  iot-platform-postgres-exporter-shard0:
     image: prometheuscommunity/postgres-exporter:v0.18.1
-    container_name: iot-platform-postgres-exporter
+    container_name: iot-platform-postgres-exporter-shard0
     depends_on:
-      iot-platform-postgres:
+      postgres-shard0:
         condition: service_healthy
     environment:
-      DATA_SOURCE_NAME: postgresql://${IOT_PLATFORM_POSTGRES_USER}:${IOT_PLATFORM_POSTGRES_PASSWORD}@iot-platform-postgres:5432/iot_platform?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://${DEVICE_COLLECTOR_POSTGRES_USER}:${DEVICE_COLLECTOR_POSTGRES_PASSWORD}@postgres-shard0:5432/iot_platform_shard0?sslmode=disable
     ports:
       - "9188:9187"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9187/metrics" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  iot-platform-postgres-exporter-shard1:
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    container_name: iot-platform-postgres-exporter-shard1
+    depends_on:
+      postgres-shard1:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DEVICE_COLLECTOR_POSTGRES_USER}:${DEVICE_COLLECTOR_POSTGRES_PASSWORD}@postgres-shard1:5432/iot_platform_shard1?sslmode=disable
+    ports:
+      - "9191:9187"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9187/metrics" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  iot-platform-postgres-exporter-shard2:
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    container_name: iot-platform-postgres-exporter-shard2
+    depends_on:
+      postgres-shard2:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DEVICE_COLLECTOR_POSTGRES_USER}:${DEVICE_COLLECTOR_POSTGRES_PASSWORD}@postgres-shard2:5432/iot_platform_shard2?sslmode=disable
+    ports:
+      - "9192:9187"
     networks:
       - iot-platform-net
     healthcheck:
@@ -532,25 +607,43 @@ services:
       timeout: 5s
       retries: 10
 
+  nexus:
+    image: sonatype/nexus3:3.76.0-alpine
+    container_name: nexus
+    ports:
+      - "8082:8081"
+    environment:
+      NEXUS_SECURITY_INITIAL_PASSWORD: ${NEXUS_PASSWORD}
+      NEXUS_SECURITY_RANDOMPASSWORD: false
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    volumes:
+      - nexus-data:/nexus-data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/service/rest/v1/status" ]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
   events-collector-service:
     build:
-      context: ../events-collector-service
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: events-collector-service/Dockerfile
+      args:
+        NEXUS_URL: ${NEXUS_URL}
+        NEXUS_USER: ${NEXUS_USER}
+        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
     image: events-collector-service:1.0.0
+    env_file:
+      - .env
     ports: # Диапазон портов допускает развёртывание 3-х экземпляров сервиса
       - "8093-8095:8080"
       - "9073-9075:9090"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
-      SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/clickhouse?compress=0
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
     depends_on:
       kafka1:
         condition: service_healthy
@@ -560,7 +653,41 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
-      alloy:
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  device-collector-service:
+    build:
+      context: ..
+      dockerfile: device-collector-service/Dockerfile
+      args:
+        NEXUS_URL: ${NEXUS_URL}
+        NEXUS_USER: ${NEXUS_USER}
+        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
+    image: device-collector-service:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8096:8080"
+      - "9076:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      postgres-shard0:
+        condition: service_healthy
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
         condition: service_healthy
     networks:
       - iot-platform-net
@@ -573,16 +700,22 @@ services:
 
   simple-event-sender:
     build:
-      context: ../simple-event-sender
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: simple-event-sender/Dockerfile
+      args:
+        NEXUS_URL: ${NEXUS_URL}
+        NEXUS_USER: ${NEXUS_USER}
+        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
     image: simple-event-sender:1.0.0
+    env_file:
+      - .env
     ports:
       - "8092:8080"
       - "9072:9090"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
-      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL}
     depends_on:
       kafka1:
         condition: service_healthy
@@ -610,6 +743,9 @@ volumes:
   schema_registry_data:
   redis-insight:
   iot-platform-postgres-data:
+  postgres-shard0-data:
+  postgres-shard1-data:
+  postgres-shard2-data:
   keycloak-postgres-data:
   camunda-postgres-data:
   clickhouse-data:
@@ -618,3 +754,4 @@ volumes:
   loki_chunks:
   loki_index:
   loki_rules:
+  nexus-data:

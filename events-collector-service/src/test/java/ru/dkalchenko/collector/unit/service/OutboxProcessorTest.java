@@ -10,7 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.dkalchenko.collector.client.RedisClient;
-import ru.dkalchenko.collector.mapper.DeviceDtoAvroSchema;
+import ru.dkalchenko.collector.mapper.DeviceInfoAvroSchema;
 import ru.dkalchenko.collector.model.DeviceOutbox;
 import ru.dkalchenko.collector.properties.OutboxProperties;
 import ru.dkalchenko.collector.repository.OutboxRepository;
@@ -19,7 +19,6 @@ import ru.dkalchenko.collector.service.InstanceRegistry;
 import ru.dkalchenko.collector.service.OutboxProcessor;
 import ru.dkalchenko.collector.metrics.CollectorMetrics;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +45,7 @@ class OutboxProcessorTest {
     @Mock
     DevicePublisher devicePublisher;
     @Mock
-    DeviceDtoAvroSchema deviceDtoAvroSchema;
+    DeviceInfoAvroSchema deviceInfoAvroSchema;
     @Mock
     GenericRecord genericRecord;
     @Mock
@@ -69,20 +68,21 @@ class OutboxProcessorTest {
         when(instanceRegistry.getTotalInstances()).thenReturn(total);
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
-        DeviceOutbox row1 = new DeviceOutbox("device-1", LocalDateTime.now(), 0, null, null, null);
-        DeviceOutbox row2 = new DeviceOutbox("device-2", LocalDateTime.now(), 0, null, null, null);
+        long nowMs = System.currentTimeMillis();
+        DeviceOutbox row1 = new DeviceOutbox("device-1", "type-1", nowMs, "{}", 0, null, null, null);
+        DeviceOutbox row2 = new DeviceOutbox("device-2", "type-2", nowMs, "{}", 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row1, row2))
                 .thenReturn(List.of());
 
         when(redisClient.sAddWithExpire(eq(PUBLISHED_KEY), eq(TTL), eq("device-1"))).thenReturn(1L);
         when(redisClient.sAddWithExpire(eq(PUBLISHED_KEY), eq(TTL), eq("device-2"))).thenReturn(1L);
-        when(deviceDtoAvroSchema.createRecord("device-1")).thenReturn(genericRecord);
-        when(deviceDtoAvroSchema.createRecord("device-2")).thenReturn(genericRecord);
+        when(deviceInfoAvroSchema.createRecord(row1)).thenReturn(genericRecord);
+        when(deviceInfoAvroSchema.createRecord(row2)).thenReturn(genericRecord);
 
         outboxProcessor.processOutbox();
 
-        verify(devicePublisher, times(2)).publish(any(GenericRecord.class), isNull());
+        verify(devicePublisher, times(2)).publish(any(GenericRecord.class), any(), any());
         verify(outboxRepository).markAsSent("device-1");
         verify(outboxRepository).markAsSent("device-2");
         verify(outboxRepository, never()).incrementAttempts(any(), any());
@@ -97,14 +97,14 @@ class OutboxProcessorTest {
         when(instanceRegistry.getTotalInstances()).thenReturn(total);
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
-        DeviceOutbox row = new DeviceOutbox("device-fail", LocalDateTime.now(), 0, null, null, null);
+        DeviceOutbox row = new DeviceOutbox("device-fail", "type", System.currentTimeMillis(), "{}", 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row))
                 .thenReturn(List.of());
 
         when(redisClient.sAddWithExpire(eq(PUBLISHED_KEY), eq(TTL), eq("device-fail"))).thenReturn(1L);
-        when(deviceDtoAvroSchema.createRecord("device-fail")).thenReturn(genericRecord);
-        doThrow(new RuntimeException("Kafka unavailable")).when(devicePublisher).publish(eq(genericRecord), any());
+        when(deviceInfoAvroSchema.createRecord(row)).thenReturn(genericRecord);
+        doThrow(new RuntimeException("Kafka unavailable")).when(devicePublisher).publish(eq(genericRecord), any(), any());
 
         outboxProcessor.processOutbox();
 

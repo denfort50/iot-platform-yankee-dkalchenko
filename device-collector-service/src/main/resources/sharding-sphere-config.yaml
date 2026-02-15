@@ -1,0 +1,121 @@
+dataSources:
+  ds0_primary:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS0_URL}
+    username: ${POSTGRESQL_DS0_USER}
+    password: ${POSTGRESQL_DS0_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+  ds0_replica:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS0_REPLICA_URL}
+    username: ${POSTGRESQL_DS0_REPLICA_USER}
+    password: ${POSTGRESQL_DS0_REPLICA_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+  ds1_primary:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS1_URL}
+    username: ${POSTGRESQL_DS1_USER}
+    password: ${POSTGRESQL_DS1_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+  ds1_replica:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS1_REPLICA_URL}
+    username: ${POSTGRESQL_DS1_REPLICA_USER}
+    password: ${POSTGRESQL_DS1_REPLICA_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+  ds2_primary:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS2_URL}
+    username: ${POSTGRESQL_DS2_USER}
+    password: ${POSTGRESQL_DS2_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+  ds2_replica:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: ${POSTGRESQL_DS2_REPLICA_URL}
+    username: ${POSTGRESQL_DS2_REPLICA_USER}
+    password: ${POSTGRESQL_DS2_REPLICA_PASSWORD}
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+
+rules:
+  - !SINGLE
+    tables:
+      - "*.*.*"
+    defaultDataSource: ds0_primary
+
+  - !READWRITE_SPLITTING
+    dataSourceGroups:
+      ds0:
+        writeDataSourceName: ds0_primary
+        readDataSourceNames:
+          - ds0_replica
+        loadBalancerName: round_robin
+      ds1:
+        writeDataSourceName: ds1_primary
+        readDataSourceNames:
+          - ds1_replica
+        loadBalancerName: round_robin
+      ds2:
+        writeDataSourceName: ds2_primary
+        readDataSourceNames:
+          - ds2_replica
+        loadBalancerName: round_robin
+    loadBalancers:
+      round_robin:
+        type: ROUND_ROBIN
+
+  # Логическая таблица devices (биндер ищет в public; view public.devices → collector.devices).
+  - !SHARDING
+    tables:
+      devices:
+        actualDataNodes: ds0.devices,ds1.devices,ds2.devices
+        databaseStrategy:
+          standard:
+            shardingColumn: device_id
+            shardingAlgorithmName: device_id_class_based
+        tableStrategy:
+          standard:
+            shardingColumn: device_id
+            shardingAlgorithmName: device_id_class_based
+    defaultDatabaseStrategy:
+      none:
+    shardingAlgorithms:
+      device_id_class_based:
+        type: CLASS_BASED
+        props:
+          strategy: STANDARD
+          algorithmClassName: ru.dkalchenko.device.collector.sharding.DeviceIdShardingAlgorithm

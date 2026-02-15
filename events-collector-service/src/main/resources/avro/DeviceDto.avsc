@@ -1,8 +1,0 @@
-{
-  "type": "record",
-  "name": "DeviceDto",
-  "namespace": "com.nashkod.avro",
-  "fields": [
-    {"name": "deviceId", "type": "string"}
-  ]
-}

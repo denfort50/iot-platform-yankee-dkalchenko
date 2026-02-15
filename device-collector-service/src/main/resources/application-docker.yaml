@@ -1,0 +1,20 @@
+# Миграции на все три шарда выполняет MultiShardFlywayMigrator (нужны POSTGRESQL_DS0_URL, POSTGRESQL_DS1_URL, POSTGRESQL_DS2_URL).
+spring:
+  flyway:
+    enabled: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka1:9092,kafka2:9093,kafka3:9094}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+
+management:
+  server:
+    port: 9090
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      # Трейсы в Alloy (OTLP HTTP), далее в Tempo. Свойство endpoint (не export.url).
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}

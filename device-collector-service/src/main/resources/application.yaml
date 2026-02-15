@@ -1,0 +1,78 @@
+device-collector:
+  listener:
+    kafka-topic: devices.v1
+  publisher:
+    dlt-topic: dlt.v1
+    dlt-topic-partitions: 3
+    dlt-topic-replicas: 2
+  sharding:
+    sharding-count: 3 # Количество шардов по device_id
+
+spring:
+  application:
+    name: device-collector-service
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:sharding-sphere-config.yaml
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: collector
+    baseline-on-migrate: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: device-collector-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      heartbeat-interval: 3000
+      max-poll-records: 1
+      max-poll-interval: 60000
+      properties:
+        session.timeout.ms: 9000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+    properties:
+      spring.json.trusted.packages: "*"
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+      specific.avro.reader: true
+      auto.register.schemas: true
+      use.latest.version: true
+
+logging:
+  level:
+    ru.dkalchenko.device.collector: DEBUG
+    org.apache.shardingsphere: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  otlp:
+    logging:
+      export:
+        enabled: false
+    metrics:
+      export:
+        enabled: false

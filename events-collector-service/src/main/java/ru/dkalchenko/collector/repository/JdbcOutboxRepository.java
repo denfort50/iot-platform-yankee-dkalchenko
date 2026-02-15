@@ -28,7 +28,9 @@ public class JdbcOutboxRepository implements OutboxRepository {
     public void save(DeviceOutbox outbox) {
         jdbcTemplate.update(OutboxRepository.INSERT_SQL,
                 outbox.deviceId(),
-                OutboxRepositoryHelper.toClickHouseTimestamp(outbox.createdAt()),
+                OutboxRepositoryHelper.getDeviceTypeOrEmpty(outbox),
+                OutboxRepositoryHelper.getCreatedAtOrNow(outbox),
+                OutboxRepositoryHelper.getMetaOrEmpty(outbox),
                 OutboxRepositoryHelper.getAttemptsOrZero(outbox),
                 OutboxRepositoryHelper.getLastErrorOrEmpty(outbox),
                 OutboxRepositoryHelper.getTraceIdOrNull(outbox),

@@ -22,9 +22,20 @@ repositories {
     maven {
         url = uri("https://packages.confluent.io/maven/")
     }
+    maven {
+        name = "nexus"
+        url = uri(project.findProperty("nexus.url") as String? ?: System.getenv("NEXUS_URL") ?: "http://localhost:8082/repository/maven-releases/")
+        isAllowInsecureProtocol = true
+        credentials {
+            username = project.findProperty("nexus.user") as String? ?: System.getenv("NEXUS_USER") ?: "admin"
+            password = project.findProperty("nexus.password") as String? ?: System.getenv("NEXUS_PASSWORD") ?: "admin"
+        }
+    }
 }
 
 dependencies {
+    implementation("ru.dkalchenko:iot-avro-schemas:1.0.0")
+
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-validation")

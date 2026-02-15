@@ -1,0 +1,50 @@
+{
+  "type": "record",
+  "name": "DeadLetterMessage",
+  "namespace": "com.nashkod.avro",
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "doc": "Уникальный ID сообщения"
+    },
+    {
+      "name": "service",
+      "type": "string",
+      "doc": "Сервис-отправитель"
+    },
+    {
+      "name": "originalTopic",
+      "type": "string",
+      "doc": "Исходный топик"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "doc": "Время ошибки (мс)"
+    },
+    {
+      "name": "errorMessage",
+      "type": "string",
+      "doc": "Текст ошибки"
+    },
+    {
+      "name": "traceId",
+      "type": "string",
+      "doc": "Trace ID, в рамках которого случилась ошибка"
+    },
+    {
+      "name": "originalKey",
+      "type": [
+        "null",
+        "string"
+      ],
+      "doc": "Ключ сообщения"
+    },
+    {
+      "name": "originalValue",
+      "type": "string",
+      "doc": "Тело сообщения (JSON)"
+    }
+  ]
+}
