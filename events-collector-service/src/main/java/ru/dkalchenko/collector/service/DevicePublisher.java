@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Публикует сообщения об устройствах в топик Kafka (devices.v1).
- * Принимает готовый Avro GenericRecord; ключ сообщения — deviceId из записи.
  */
 @Slf4j
 @Service
@@ -25,20 +24,13 @@ public class DevicePublisher {
     KafkaTemplate<String, GenericRecord> deviceKafkaTemplate;
     OutboxProperties outboxProperties;
 
-    /**
-     * Отправляет устройство (GenericRecord по схеме DeviceDto) в топик devices.v1.
-     * Ключ сообщения берётся из поля record.deviceId.
-     *
-     * @param record  Avro GenericRecord с полем deviceId
-     * @param traceId trace_id текущего трейса (может быть null) — добавляется в заголовок сообщения
-     */
-    public void publish(GenericRecord record, String traceId) {
+    public void publish(GenericRecord record, String traceId, String spanId) {
         String topic = outboxProperties.kafkaTopic();
         String key = record != null && record.get("deviceId") != null
                 ? record.get("deviceId").toString()
                 : "";
         ProducerRecord<String, GenericRecord> kafkaRecord = new ProducerRecord<>(topic, key, record);
-        if (traceId != null && !traceId.isBlank()) {
+        if (traceId != null && !traceId.isBlank() && spanId != null && !spanId.isBlank()) {
             kafkaRecord.headers().add("trace_id", traceId.getBytes(StandardCharsets.UTF_8));
         }
         deviceKafkaTemplate.send(kafkaRecord);

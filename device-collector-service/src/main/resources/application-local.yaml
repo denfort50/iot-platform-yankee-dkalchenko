@@ -1,0 +1,23 @@
+server:
+  port: 8096
+
+# Миграции на все три шарда выполняет MultiShardFlywayMigrator (прямое JDBC). Стандартный Flyway отключён.
+spring:
+  flyway:
+    enabled: false
+  kafka:
+    bootstrap-servers: localhost:19092,localhost:19093,localhost:19094
+    properties:
+      schema.registry.url: http://localhost:8081
+
+management:
+  server:
+    port: 9076
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      # Alloy в Docker слушает на 4318; при пробросе порта — localhost:4318
+      endpoint: http://localhost:4318/v1/traces

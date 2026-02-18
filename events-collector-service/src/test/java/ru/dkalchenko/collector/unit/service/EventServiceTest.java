@@ -66,7 +66,16 @@ class EventServiceTest {
     void whenNewDeviceIdThenCreatesOutboxRecordWithTraceContext() {
         stubTracerForSaveSpan();
         LocalDateTime now = LocalDateTime.now();
-        DeviceOutbox baseOutbox = new DeviceOutbox(DEVICE_ID, now, 0, null, null, null);
+        DeviceOutbox baseOutbox = new DeviceOutbox(
+                DEVICE_ID,
+                "temperature",
+                now.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
+                "{}",
+                0,
+                null,
+                null,
+                null
+        );
         when(deduplicationService.isNewDevice(DEVICE_ID)).thenReturn(true);
         when(deviceOutboxMapper.toOutbox(EVENT)).thenReturn(baseOutbox);
         when(tracer.currentSpan()).thenReturn(span);
@@ -92,7 +101,16 @@ class EventServiceTest {
     void whenNewDeviceIdAndNoCurrentSpanThenSavesOutboxWithNullTraceContext() {
         stubTracerForSaveSpan();
         LocalDateTime now = LocalDateTime.now();
-        DeviceOutbox baseOutbox = new DeviceOutbox(DEVICE_ID, now, 0, null, null, null);
+        DeviceOutbox baseOutbox = new DeviceOutbox(
+                DEVICE_ID,
+                "temperature",
+                now.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
+                "{}",
+                0,
+                null,
+                null,
+                null
+        );
         when(deduplicationService.isNewDevice(DEVICE_ID)).thenReturn(true);
         when(deviceOutboxMapper.toOutbox(EVENT)).thenReturn(baseOutbox);
         when(tracer.currentSpan()).thenReturn(null);

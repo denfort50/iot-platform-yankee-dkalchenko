@@ -1,0 +1,12 @@
+# Профиль для интеграционных тестов (Testcontainers).
+# Миграции на все три шарда выполняет MultiShardFlywayMigrator; автоконфиг Flyway отключаем,
+# иначе flywayInitializer пытается создать схему collector и падает с "already exists".
+spring:
+  flyway:
+    enabled: false
+
+logging:
+  level:
+    ru.dkalchenko.device.collector: DEBUG
+    org.apache.shardingsphere: WARN
+    org.springframework.kafka: WARN

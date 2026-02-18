@@ -12,6 +12,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 import reactor.kafka.sender.KafkaSender;
 import reactor.kafka.sender.SenderRecord;
+import reactor.kafka.sender.SenderResult;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ public class EventGeneratorService {
                 .as(kafkaSender::send)
                 .doOnNext(result -> {
                     if (result.exception() != null) {
-                        log.warn("Send failed for record {}: {}", result.correlationMetadata(), result.exception().getMessage());
+                        warn(result);
                     }
                 })
                 .filter(result -> result.exception() == null)
@@ -99,7 +100,7 @@ public class EventGeneratorService {
                 .as(kafkaSender::send)
                 .doOnNext(result -> {
                     if (result.exception() != null) {
-                        log.warn("Send failed for record {}: {}", result.correlationMetadata(), result.exception().getMessage());
+                        warn(result);
                     }
                 })
                 .filter(result -> result.exception() == null)
@@ -143,5 +144,9 @@ public class EventGeneratorService {
         record.put("payload", payload);
 
         return record;
+    }
+
+    private static void warn(SenderResult<Long> result) {
+        log.warn("Send failed for record {}: {}", result.correlationMetadata(), result.exception().getMessage());
     }
 }

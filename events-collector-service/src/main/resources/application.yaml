@@ -9,7 +9,7 @@ collector: # Настройки сервиса-коллектора событи
   outbox: # Фоновый процесс отправки device_outbox в Kafka
     schedule: "*/5 * * * * *" # Cron: каждые 5 секунд
     kafka-topic: devices.v1
-    topic-partitions: 3
+    topic-partitions: 10
     topic-replicas: 2
     batch-size: 100 # Максимальное число записей для извлечения из БД на один инстанс сервиса
     published-key: devices:published # Ключ Redis для идемпотентности отправки в Kafka

@@ -1,7 +1,5 @@
 package ru.dkalchenko.collector.model;
 
-import java.time.LocalDateTime;
-
 /**
  * Запись outbox для последующей публикации устройства в devices.v1.
  * Поля traceId и spanId хранят контекст трейса на момент записи в outbox,
@@ -9,13 +7,24 @@ import java.time.LocalDateTime;
  */
 public record DeviceOutbox(
         String deviceId,
-        LocalDateTime createdAt,
+        String deviceType,
+        Long createdAt,
+        String meta,
         Integer attempts,
         String lastError,
         String traceId,
         String spanId
 ) {
     public DeviceOutbox(DeviceOutbox base, String traceId, String spanId) {
-        this(base.deviceId(), base.createdAt(), base.attempts(), base.lastError(), traceId, spanId);
+        this(
+                base.deviceId(),
+                base.deviceType(),
+                base.createdAt(),
+                base.meta(),
+                base.attempts(),
+                base.lastError(),
+                traceId,
+                spanId
+        );
     }
 }

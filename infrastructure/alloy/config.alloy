@@ -121,6 +121,47 @@ discovery.relabel "events_collector" {
   }
 }
 
+// Discovery для device-collector-service: скрапим по IP в сети, путь /actuator/prometheus, порт 9090.
+discovery.relabel "device_collector" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = ".*device-collector-service.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = ".*iot-platform-net.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_ip"]
+    regex         = "(.+)"
+    target_label  = "__address__"
+    replacement   = "${1}:9090"
+  }
+
+  rule {
+    target_label = "__metrics_path__"
+    replacement  = "/actuator/prometheus"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "device-collector-service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "instance"
+    replacement   = "${1}:9090"
+  }
+}
+
 prometheus.scrape "docker_services" {
   scrape_interval = "15s"
 
@@ -132,6 +173,9 @@ prometheus.scrape "docker_services" {
     { __address__ = "tempo:3200", __metrics_path__ = "/metrics", job = "tempo" },
     { __address__ = "keycloak-postgres-exporter:9187", __metrics_path__ = "/metrics", job = "keycloak-postgres" },
     { __address__ = "camunda-postgres-exporter:9187", __metrics_path__ = "/metrics", job = "camunda-postgres" },
+    { __address__ = "iot-platform-postgres-exporter-shard0:9187", __metrics_path__ = "/metrics", job = "iot-platform-postgres", instance = "shard0" },
+    { __address__ = "iot-platform-postgres-exporter-shard1:9187", __metrics_path__ = "/metrics", job = "iot-platform-postgres", instance = "shard1" },
+    { __address__ = "iot-platform-postgres-exporter-shard2:9187", __metrics_path__ = "/metrics", job = "iot-platform-postgres", instance = "shard2" },
     { __address__ = "kafka-exporter:9308", __metrics_path__ = "/metrics", job = "kafka" },
     { __address__ = "redis-exporter:9121", __metrics_path__ = "/metrics", job = "redis" },
     { __address__ = "minio:9000", __metrics_path__ = "/minio/v2/metrics/cluster", job = "minio" },
@@ -144,6 +188,12 @@ prometheus.scrape "docker_services" {
 prometheus.scrape "events_collector" {
   scrape_interval = "10s"
   targets         = discovery.relabel.events_collector.output
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+prometheus.scrape "device_collector" {
+  scrape_interval = "10s"
+  targets         = discovery.relabel.device_collector.output
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
 

@@ -1,4 +1,6 @@
-# IoT Microservice Platform – проект, демонстрирующий архитектуру микросервисов для IoT (Internet of Things)
+# IoT Microservice Platform – система обработки событий электронных IoT-устройств
+
+Платформа включает: **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий). Общие Avro-схемы вынесены в модуль **iot-avro-schemas**.
 
 ## Технологический стек
 
@@ -6,7 +8,7 @@
 - **Backend‑фреймворки**: Spring Boot 3.5 (Web MVC, WebFlux, Security — JWT, OAuth2 Resource Server)
 - **Интеграция и клиентские библиотеки**: OpenFeign
 - **Маппинг и удобство разработки**: MapStruct, Lombok, Springdoc OpenAPI
-- **Хранение данных**: PostgreSQL, ClickHouse, Redis, MinIO (S3‑совместимое объектное хранилище)
+- **Хранение данных**: PostgreSQL (в т.ч. шардированный через ShardingSphere для device-collector), ClickHouse, Redis, MinIO (S3‑совместимое объектное хранилище)
 - **Сообщения и очереди**: Kafka, Confluent Schema Registry
 - **Оркестрация и инфраструктура**: Docker Compose
 - **Безопасность и оркестрация процессов**: Keycloak, Camunda
@@ -26,8 +28,10 @@
 ### Диаграммы архитектуры (C4 + PlantUML)
 
 Файлы находятся в каталоге `diagrams/`:
-- **Context (уровень системы)** - [diagrams/context.puml](diagrams/context.puml)
-- **Container (уровень контейнеров)** - [diagrams/containers.puml](diagrams/containers.puml)
+- **Context** (уровень системы) — [context.puml](diagrams/context.puml)
+- **Container** (уровень контейнеров) — [containers.puml](diagrams/containers.puml)
+- **Components** — [components_ecs.puml](diagrams/components_ecs.puml), [components_dcs.puml](diagrams/components_dcs.puml)
+- **Sequence** — [sequence_ecs.puml](diagrams/sequence_ecs.puml), [sequence_dcs.puml](diagrams/sequence_dcs.puml)
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -36,11 +40,26 @@
 ```
 iot-platform-yankee-dkalchenko/
 ├─ diagrams/                          # C4‑диаграммы архитектуры (PlantUML)
-│  ├─ components.puml
-│  ├─ containers.puml
-│  ├─ context.puml
-│  └─ sequence.puml
-├─ events-collector-service/          # Сервис сбора и обработки событий IoT
+│  ├─ context.puml                    # Контекст (уровень системы)
+│  ├─ containers.puml                 # Контейнеры
+│  ├─ components_ecs.puml             # Компоненты Events Collector Service
+│  ├─ components_dcs.puml             # Компоненты Device Collector Service
+│  ├─ sequence_ecs.puml               # Последовательности ECS
+│  └─ sequence_dcs.puml                # Последовательности DCS
+├─ iot-avro-schemas/                  # Общие Avro‑схемы (DeviceInfo, DeviceEvent, DeadLetterMessage)
+│  ├─ src/main/resources/avro/
+│  └─ README.md
+├─ device-collector-service/          # Сервис приёма сообщений об устройствах из Kafka → PostgreSQL (шарды)
+│  ├─ src/main/java/ru/dkalchenko/device/collector/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  ├─ application-docker.yaml
+│  │  └─ db/migration/...            # Flyway‑миграции, ShardingSphere
+│  ├─ sharding-sphere-config.yaml
+│  ├─ Dockerfile
+│  └─ README.md
+├─ events-collector-service/          # Сервис сбора и обработки событий IoT (Outbox → Kafka, ClickHouse)
 │  ├─ src/main/java/ru/dkalchenko/collector/...
 │  ├─ src/main/resources/
 │  │  ├─ application.yaml
@@ -59,34 +78,27 @@ iot-platform-yankee-dkalchenko/
 │  └─ README.md
 ├─ infrastructure/                    # Инфраструктура: observability, БД и т.д.
 │  ├─ alloy/config.alloy
-│  ├─ databases/iot_platform/...
 │  ├─ grafana/provisioning/{datasources,dashboards}
-│  ├─ loki/loki-config.yaml
-│  ├─ prometheus/prometheus.yaml
-│  ├─ tempo/tempo.yaml
+│  ├─ grafana/dashboards/
+│  ├─ docker-compose.yaml
 │  ├─ .env
-│  └─ docker-compose.yaml
+│  └─ ...
 ├─ build.gradle.kts                   # Корневой Gradle‑конфиг (мультипроект)
 ├─ settings.gradle.kts                # Настройка модулей Gradle
-├─ Makefile                           # Сценарии запуска/остановки инфраструктуры и сервисов
+├─ Makefile                           # Сценарии запуска (start, module-three, only-needed, stop, clean)
 └─ README.md
 ```
 
 ---
 ## Быстрый старт
-> Требуется: **Docker** (compose), **JDK 24**, `make`. 
-## Вариант A - через `Makefile` (рекомендуется)
+> Требуется: **Docker** (compose), **JDK 24**, `make`.
+
+### Вариант A — через `Makefile` (рекомендуется)
 
 ```bash
-# В корне репозитория
-make start
+# Полный запуск: вся инфраструктура + все сервисы
+make all
 ```
-
-Что делает:
-* поднимает инфраструктуру  
-(Keycloak + Postgres, Camunda + Postgres, Postgres для IoT, Prometheus, Grafana, Alloy, 
-Tempo, Loki, экспортеры, Clickhouse, Redis, Redis UI, Kafka, Schema Registry, Kafka UI, MinIO);
-* стартует сервисы.
 
 ```bash
 # Остановить контейнеры
@@ -94,11 +106,11 @@ make stop
 ```
 
 ```bash
-# Удалить контейнеры и docker-тома
+# Удалить контейнеры и тома
 make clean
 ```
 
-## Вариант B - чистый docker compose
+### Вариант B — чистый docker compose
 
 ```bash
 # Запустить контейнеры
@@ -118,33 +130,35 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 ---
 ## Порты и сервисы
 
-| Сервис                           | Порт (host) | Описание                           |
-|----------------------------------|-------------|------------------------------------|
-| Postgres (iot-platform)          | 5434        | Контейнер `iot-platform-postgres`  |
-| Postgres (keycloak)              | 5433        | Контейнер `keycloak-postgres`      |
-| Postgres (camunda)               | 5435        | Контейнер `camunda-postgres`       |
-| Clickhouse                       | 8123        | Хранилище телеметрии               |
-| Redis                            | 6379        | Кэш и in-memory хранилище          |
-| Redis Insight                    | 5540        | Визуальный интерфейс Redis         |
-| Keycloak                         | 8080        | Dev-мод                            |
-| Kafka                            | 9092        | Брокер №1                          |
-| Kafka                            | 9093        | Брокер №2                          |
-| Kafka                            | 9094        | Брокер №3                          |
-| Schema Registry                  | 8081        | Управление Avro схемами            |
-| Kafka UI                         | 8070        | Визуальный интерфейс Kafka         |
-| MinIO                            | 9001        | S3-совместимое объектное хранилище |
-| Camunda                          | 8088        | Workflow и BPM движок              |
-| Postgres Exporter (iot-platform) | 9188        | Экспорт метрик                     |
-| Postgres Exporter (keycloak)     | 9189        | Экспорт метрик                     |
-| Postgres Exporter (camunda)      | 9190        | Экспорт метрик                     |
-| Kafka Exporter                   | 9308        | Экспорт метрик                     |
-| Prometheus                       | 9090        | Метрики                            |
-| Alloy                            | 9080        | OTel-коллектор                     |
-| Grafana                          | 3000        | Dashboard + Explore                |
-| Tempo                            | 3200        | Хранилище трассировок (OTLP)       |
-| Loki                             | 3100        | Хранилище логов                    |
-| Events Collector Service         | 9071        | Сервис сбора и обработки событий   |
-| Simple Event Sender              | 8092        | REST API генерации событий         |
+| Сервис                              | Порт (host)      | Описание                                   |
+|-------------------------------------|------------------|--------------------------------------------|
+| Postgres Shard 0 (device-collector) | 5436             | Контейнер `postgres-shard0`                |
+| Postgres Shard 1 (device-collector) | 5437             | Контейнер `postgres-shard1`                |
+| Postgres Shard 2 (device-collector) | 5438             | Контейнер `postgres-shard2`                |
+| Postgres (keycloak)                 | 5433             | Контейнер `keycloak-postgres`              |
+| Postgres (camunda)                  | 5435             | Контейнер `camunda-postgres`               |
+| ClickHouse                          | 8123             | Хранилище телеметрии                       |
+| Redis                               | 6379             | Кэш и in-memory хранилище                  |
+| Redis Insight                       | 5540             | Визуальный интерфейс Redis                 |
+| Keycloak                            | 8080             | Dev-мод                                    |
+| Kafka                               | 9092, 9093, 9094 | Брокеры №1–3                               |
+| Schema Registry                     | 8081             | Управление Avro-схемами                    |
+| Kafka UI                            | 8070             | Визуальный интерфейс Kafka                 |
+| Nexus                               | 8082             | Maven-репозиторий (iot-avro-schemas и др.) |
+| MinIO                               | 9001, 9002       | S3-совместимое хранилище + консоль         |
+| Camunda                             | 8088             | Workflow и BPM движок                      |
+| Postgres Exporter (shard 0/1/2)     | 9188, 9191, 9192 | Метрики PostgreSQL шардов                  |
+| Postgres Exporter (keycloak)        | 9189             | Метрики Keycloak Postgres                  |
+| Postgres Exporter (camunda)         | 9190             | Метрики Camunda Postgres                   |
+| Kafka Exporter                      | 9308             | Метрики Kafka                              |
+| Prometheus                          | 9090             | Сбор метрик                                |
+| Alloy                               | 9080             | OTel-коллектор (трассировки, метрики)      |
+| Grafana                             | 3000             | Dashboard + Explore                        |
+| Tempo                               | 3200             | Хранилище трассировок (OTLP)               |
+| Loki                                | 3100             | Хранилище логов                            |
+| Device Collector Service            | 8096             | Приём устройств из Kafka → PostgreSQL      |
+| Events Collector Service            | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
+| Simple Event Sender                 | 8092             | REST API генерации тестовых событий        |
 
 ## Наблюдаемость
 

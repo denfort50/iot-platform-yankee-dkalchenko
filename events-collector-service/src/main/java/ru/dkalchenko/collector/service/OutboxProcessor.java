@@ -1,6 +1,7 @@
 package ru.dkalchenko.collector.service;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -9,7 +10,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import ru.dkalchenko.collector.client.RedisClient;
-import ru.dkalchenko.collector.mapper.DeviceDtoAvroSchema;
+import ru.dkalchenko.collector.mapper.DeviceInfoAvroSchema;
 import ru.dkalchenko.collector.metrics.CollectorMetrics;
 import ru.dkalchenko.collector.model.DeviceOutbox;
 import ru.dkalchenko.collector.repository.OutboxRepository;
@@ -33,7 +34,7 @@ public class OutboxProcessor {
     InstanceRegistry instanceRegistry;
     RedisClient redisClient;
     DevicePublisher devicePublisher;
-    DeviceDtoAvroSchema deviceDtoAvroSchema;
+    DeviceInfoAvroSchema deviceInfoAvroSchema;
     OutboxProperties outboxProperties;
     CollectorMetrics collectorMetrics;
 
@@ -87,7 +88,7 @@ public class OutboxProcessor {
             log.debug("Skip, already published ({}): deviceId={}", publishedKey, deviceId);
             return false;
         }
-        GenericRecord record = deviceDtoAvroSchema.createRecord(deviceId);
+        GenericRecord record = deviceInfoAvroSchema.createRecord(row);
         try {
             TraceContextCapture.runInContinuedTrace(
                     openTelemetry,
@@ -95,7 +96,10 @@ public class OutboxProcessor {
                     row.spanId(),
                     "publish-device-kafka",
                     deviceId,
-                    () -> devicePublisher.publish(record, row.traceId())
+                    () -> {
+                        var spanContext = Span.current().getSpanContext();
+                        devicePublisher.publish(record, spanContext.getTraceId(), spanContext.getSpanId());
+                    }
             );
         } catch (Exception e) {
             log.warn("Failed to publish device {}, will retry later: {}", deviceId, e.getMessage());

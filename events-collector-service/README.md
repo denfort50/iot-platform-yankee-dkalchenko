@@ -7,8 +7,9 @@
 - **Kafka**: Spring for Apache Kafka, Confluent Avro Serializer, Schema Registry
 - **Хранение**: ClickHouse, Liquibase (в т.ч. `liquibase-clickhouse`)
 - **Кэш/идемпотентность**: Redis
-- **Наблюдаемость**: Micrometer (Prometheus, OTLP), Spring Boot Actuator
+- **Наблюдаемость**: Micrometer (Prometheus, OTLP), Spring Boot Actuator, OpenTelemetry (трассировка)
 - **Маппинг**: MapStruct, Lombok
+- **Avro-схемы**: зависимость `iot-avro-schemas` (DeviceEvent, DeviceInfo)
 
 ### Описание
 
@@ -48,7 +49,7 @@ Spring Boot Actuator и Micrometer (Prometheus, OTLP).
 - **Хранение**: ClickHouse + Liquibase
   - Миграции описаны в `db/changelog` (XML + SQL‑скрипты).
   - Используется JDBC‑драйвер ClickHouse и `liquibase-clickhouse`.
-- **Конфигурация Kafka и Schema Registry**: `KafkaListenerConfig`, `KafkaPublisherConfig`, `SchemaRegistryConfig`.
+- **Конфигурация Kafka**: `KafkaListenerConfig`, `KafkaPublisherConfig`; Schema Registry — через `spring.kafka.properties.schema.registry.url` и опционально `schema-registry.cache-capacity` в `application.yaml`.
 - **Конфигурация ClickHouse**: `ClickHouseConfig`, `ClickHouseProperties`.
 - **Redis‑клиент**: `RedisClient` — обёртка над Redis для операций SADD с TTL и др.
 - **Кастомные метрики**: `CollectorMetrics` (Micrometer)
@@ -182,23 +183,25 @@ Spring Boot Actuator и Micrometer (Prometheus, OTLP).
 
 ### Сборка
 
-Из корня `events-collector-service`:
+Из корня репозитория:
 
 ```bash
+./gradlew :events-collector-service:clean build
+```
 
+Из каталога `events-collector-service`:
+
+```bash
 ./gradlew clean build
 ```
 
-На Windows (PowerShell):
-
-```powershell
-.\gradlew clean build
-```
+На Windows (PowerShell): `.\gradlew clean build` (из каталога модуля).
 
 ### Запуск через Gradle (профиль `local`)
 
-```bash
+Из каталога `events-collector-service`: `./gradlew bootRun`, или из корня репозитория: `./gradlew :events-collector-service:bootRun`.
 
+```bash
 ./gradlew bootRun
 ```
 
@@ -214,7 +217,6 @@ Spring Boot Actuator и Micrometer (Prometheus, OTLP).
 При необходимости переопределите переменные окружения перед запуском:
 
 ```bash
-
 export KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
 export SCHEMA_REGISTRY_URL="http://localhost:8081"
 export REDIS_HOST="localhost"
@@ -241,23 +243,22 @@ export CLICKHOUSE_PASSWORD="admin"
 Запуск всех тестов:
 
 ```bash
-
 ./gradlew test
 ```
 
 Сервис содержит:
 
 - **юнит‑тесты** для основных доменных сервисов (`DeduplicationServiceTest`, `EventServiceTest`, `OutboxProcessorTest`);
-- **интеграционные тесты** на основе Testcontainers:
+  - **интеграционные тесты** на основе Testcontainers:
   - Kafka, Redis, ClickHouse, Schema Registry поднимаются как тестовые контейнеры;
-  - `FullIntegrationTest` проверяет полный путь: `events.v1 → ClickHouse (device_events + device_outbox) → processOutbox → devices.v1`.
+  - `FullIntegrationTest` — полный путь: `events.v1 → ClickHouse (device_events + device_outbox) → processOutbox → devices.v1`;
+  - `OutboxShardingIntegrationTest` — распределённая обработка outbox несколькими инстансами.
 
 ### Отчёт о покрытии (JaCoCo)
 
 Для генерации отчёта:
 
 ```bash
-
 ./gradlew jacocoTestReport
 ```
 

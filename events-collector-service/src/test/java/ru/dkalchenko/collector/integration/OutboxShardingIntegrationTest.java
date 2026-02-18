@@ -36,11 +36,14 @@ class OutboxShardingIntegrationTest extends AbstractIntegrationTest {
                 "device-d", "device-e", "device-f"
         };
 
+        long createdAtMs = now.toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
         for (String deviceId : deviceIds) {
-            DeviceOutbox outbox = new DeviceOutbox(deviceId, now, 0, null, null, null);
+            DeviceOutbox outbox = new DeviceOutbox(deviceId, "type", createdAtMs, "{}", 0, null, null, null);
             jdbcTemplate.update(OutboxRepository.INSERT_SQL,
                     outbox.deviceId(),
-                    OutboxRepositoryHelper.toClickHouseTimestamp(outbox.createdAt()),
+                    OutboxRepositoryHelper.getDeviceTypeOrEmpty(outbox),
+                    OutboxRepositoryHelper.getCreatedAtOrNow(outbox),
+                    OutboxRepositoryHelper.getMetaOrEmpty(outbox),
                     OutboxRepositoryHelper.getAttemptsOrZero(outbox),
                     OutboxRepositoryHelper.getLastErrorOrEmpty(outbox),
                     OutboxRepositoryHelper.getTraceIdOrNull(outbox),

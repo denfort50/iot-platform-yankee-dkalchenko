@@ -6,9 +6,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import ru.dkalchenko.collector.model.DeviceOutbox;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -20,7 +17,7 @@ import java.util.List;
 public final class OutboxRepositoryHelper {
 
     static final String FIND_PENDING_SQL = """
-            SELECT device_id, created_at, attempts, last_error, trace_id, span_id
+            SELECT device_id, device_type, created_at, meta, attempts, last_error, trace_id, span_id
             FROM collector.device_outbox
             WHERE cityHash64(device_id) % ? = ?
             ORDER BY created_at
@@ -43,7 +40,9 @@ public final class OutboxRepositoryHelper {
     static final RowMapper<DeviceOutbox> ROW_MAPPER = (rs, _) ->
             new DeviceOutbox(
                     rs.getString("device_id"),
-                    rs.getTimestamp("created_at").toLocalDateTime(),
+                    rs.getString("device_type"),
+                    rs.getLong("created_at"),
+                    rs.getString("meta"),
                     rs.getInt("attempts"),
                     rs.getString("last_error"),
                     rs.getString("trace_id"),
@@ -55,14 +54,24 @@ public final class OutboxRepositoryHelper {
             FROM collector.device_outbox
             """;
 
-    /** ClickHouse DateTime без дробной части — обрезаем до секунд при вставке. */
-    public static Timestamp toClickHouseTimestamp(LocalDateTime dateTime) {
-        return Timestamp.valueOf(dateTime.truncatedTo(ChronoUnit.SECONDS));
-    }
-
     /** Возвращает lastError или пустую строку, если null. */
     public static String getLastErrorOrEmpty(DeviceOutbox outbox) {
         return outbox.lastError() != null ? outbox.lastError() : "";
+    }
+
+    /** Возвращает deviceType или пустую строку, если null. */
+    public static String getDeviceTypeOrEmpty(DeviceOutbox outbox) {
+        return outbox.deviceType() != null ? outbox.deviceType() : "";
+    }
+
+    /** Возвращает meta или пустую строку, если null. */
+    public static String getMetaOrEmpty(DeviceOutbox outbox) {
+        return outbox.meta() != null ? outbox.meta() : "";
+    }
+
+    /** Возвращает createdAt (epoch ms) или текущий момент, если null. */
+    public static long getCreatedAtOrNow(DeviceOutbox outbox) {
+        return outbox.createdAt() != null ? outbox.createdAt() : System.currentTimeMillis();
     }
 
     /** Возвращает attempts или 0, если null. */
