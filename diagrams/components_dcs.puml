@@ -3,9 +3,9 @@
 
 LAYOUT_WITH_LEGEND()
 
-Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt")
+Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt, devices.v1.changes")
 Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
-Container(postgres, "PostgreSQL", "Реляционная база данных", "Хранит информацию об устройствах")
+ContainerDb(postgres, "PostgreSQL", "Реляционная база данных", "Хранит информацию об устройствах")
 
 Container_Boundary(deviceCollector, "Device Collector Service", "Spring Boot", "Сервис получает данные об устройствах и сохраняет их в шардированную БД") {
     Component(deviceListener, "Device Listener", "Слушает сообщения с данными об устройствах из топика devices.v1")
@@ -23,6 +23,5 @@ Rel(dltProducer, kafka, "Сообщения отправляются в DLT")
 Rel(deviceService, deviceRepository, "Сообщения преобразуются в целевую модель данных и передаются на сохранение в БД")
 Rel(deviceRepository, shardingSphereDriver, "Запрос на сохранение через драйвер БД")
 Rel(shardingSphereDriver, postgres, "Сохранение данных об устройстве в определённый шард БД")
-
 
 @enduml

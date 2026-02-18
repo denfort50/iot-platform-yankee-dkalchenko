@@ -9,9 +9,10 @@ System_Ext(device, "IoT-устройства", "Маршрутизаторы, о
 
 System_Boundary(system, "IoT Microservice Platform") {
     Container_Boundary(iot, "IoT Core") {
-        ContainerDb(iot_pg, "IoT Platform Postgres", "PostgreSQL 17", "Основная реляционная БД платформы")
+        ContainerDb(iot_pg, "IoT Platform Postgres", "PostgreSQL 17", "Шардированная реляционная БД платформы")
         Container(ecs, "Events Collector Service", "Spring Boot", "Консьюмер необработанных событий из Kafka")
         Container(dcs, "Device Collector Service", "Spring Boot", "Консьюмер данных об устройствах из Kafka")
+        Container(dms, "Device Service", "Spring Boot", "CRUD API для работы с устройствами")
         Container(pg_exp_iot, "Postgres Exporter (IoT)", "postgres-exporter", "Экспорт метрик IoT Platform Postgres")
         Container(redis_exp_iot, "Redis Exporter", "redis-exporter", "Экспорт метрик Redis")
         Container(redis, "Redis", "Redis", "Кэш и in-memory хранилище")
@@ -53,6 +54,10 @@ Rel(ecs, redis, "Дедупликация сырых данных", "TCP/IP")
 Rel(ecs, clickhouse, "Обработанные данные сохраняются в БД", "JDBC")
 Rel(ecs, kafka_cluster, "Обработанные данные складируются в Kafka", "Kafka Protocol")
 Rel(kafka_cluster, dcs, "Данные об устройствах отправляются сервис-коллектор", "Kafka Protocol")
+Rel(dcs, iot_pg, "Отправка информации об устройствах в БД", "JDBC")
+Rel(dms, iot_pg, "READ операции с устройствами", "JDBC")
+Rel(dms, keycloak, "Аутентификация и авторизация", "HTTP")
+Rel(dms, kafka_cluster, "CREATE, UPDATE, DELETE операции с устройствами", "Kafka Protocol")
 
 Rel(engineer, grafana, "Просматривает метрики, логи и трейсы", "HTTP")
 Rel(engineer, kafka_ui, "Администрирует Kafka", "HTTP")
@@ -76,6 +81,9 @@ Rel(camunda_pg, pg_exp_camunda, "Метрики БД отправляются ч
 
 Rel(redis, redis_exp_iot, "Метрики кэша отправляются через экспортёра", "TCP/IP")
 
+Rel(ecs, alloy, "Метрики сервиса", "HTTP")
+Rel(dcs, alloy, "Метрики сервиса", "HTTP")
+Rel(dms, alloy, "Метрики сервиса", "HTTP")
 Rel(pg_exp_iot, alloy, "Метрики БД", "HTTP")
 Rel(pg_exp_keycloak, alloy, "Метрики БД", "HTTP")
 Rel(pg_exp_camunda, alloy, "Метрики БД", "HTTP")
