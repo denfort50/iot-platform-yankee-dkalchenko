@@ -1,0 +1,39 @@
+@startuml
+actor "User/System" as US order 1
+participant "Device Controller" as DC order 2
+participant "Device Service" as DS order 3
+participant "Redis Client" as RC order 4
+participant "Device Changes Publisher" as DCP order 5
+participant "Device Repository" as DR order 6
+queue "devices.v1" as OT order 7
+
+== Device Service Flow ==
+US -> DC: GET /devices/
+DC -> DS: Передача запроса в сервисный слой
+DS -> RC: Проверка наличия данных в кэше
+alt Cache-hit
+    RC --> DS: Возврат данных в сервисный слой
+    DS --> DC: Подготовка ответа
+    DC --> US: Выдача ответа
+end
+alt Cache-miss
+    RC --> DS: Данные в кэше не найдены
+    DS -> DR: Поиск данных в БД
+    DR --> DS: Возврат данных в сервисный слой
+    DS -> RC: Сохранение данных в кэше
+    RC --> DS: Данные сохранены
+    DS --> DC: Подготовка ответа
+    DC --> US: Выдача ответа
+end
+US -> DC: POST /devices
+US -> DC: PUT /devices/{deviceId}
+US -> DC: DELETE /devices/{deviceId}
+DC -> DS: Передача запросов в сервисный слой
+DS -> DCP: Передача запросов на публикацию в топик
+DCP ->> OT: Публикация запросов в топик
+OT --> DCP: Запись опубликована
+DCP --> DS: Запрос отправлен в топик
+DS --> DC: Запрос обработан
+DC --> US: Запись об устройстве создана/обновлена/удалена
+
+@enduml

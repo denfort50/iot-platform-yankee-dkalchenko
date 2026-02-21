@@ -1,0 +1,30 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt")
+Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
+ContainerDb(postgres, "PostgreSQL", "Шардированная база данных", "Хранит информацию об устройствах")
+Container(redis, "Redis", "Cache-Aside pattern", "Хранит в кэше данные об устройствах")
+
+Container_Boundary(dms, "Device Service", "Spring Boot", "Сервис предоставляет CRUD API для работы с устройствами") {
+    Component(deviceController, "Device Controller", "Предоставляет CRUD-эндпойнты")
+    Component(deviceService, "Device Service", "Выполняет бизнес-логику обработки запросов")
+    Component(redisClient, "Redis Client", "Обращается в Redis")
+    Component(deviceChangesPublisher, "Device Changes Publisher", "Пишет в топик Kafka CREATE/UPDATE/DELETE запросы")
+    Component(deviceRepository, "Device Repository", "Слой персистенции")
+    Component(shardingSphereDriver, "Sharding Sphere Driver", "Взаимодействует с шардами БД")
+}
+
+Rel(deviceController, deviceService, "Запросы передаются сервисному слою")
+Rel(deviceService, redisClient, "Запрашивает информацию об устройствах из кэша")
+Rel(redisClient, redis, "Хранит информацию об устройствах в кэше")
+Rel(deviceService, deviceRepository, "Запрашивает информацию об устройствах из БД")
+Rel(deviceService, deviceChangesPublisher, "Передает запросы на публикацию в топик devices.v1")
+Rel(deviceChangesPublisher, schema_registry, "Сериализация сообщений по Avro-схеме")
+Rel(deviceChangesPublisher, kafka, "Публикация сообщений в топик devices.v1")
+Rel(deviceRepository, shardingSphereDriver, "Запрос на чтение через драйвер БД")
+Rel(shardingSphereDriver, postgres, "Чтение данных об устройстве из определённого шарда БД")
+
+@enduml
