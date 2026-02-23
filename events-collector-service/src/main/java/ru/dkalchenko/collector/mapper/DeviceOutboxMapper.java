@@ -15,6 +15,7 @@ import ru.dkalchenko.collector.model.DeviceOutbox;
 @Mapper(componentModel = "spring")
 public interface DeviceOutboxMapper {
 
+    @Mapping(target = "operation", constant = "CREATE")
     @Mapping(target = "deviceType", source = "type")
     @Mapping(target = "createdAt", source = "timestamp")
     @Mapping(target = "meta", source = "payload")

@@ -1,0 +1,312 @@
+{
+  "info": {
+    "_postman_id": "b6711266-7135-4c59-96ca-1b6bb28f7398",
+    "name": "IoT-platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "48910547",
+    "_collection_link": "https://go.postman.co/collection/48910547-b6711266-7135-4c59-96ca-1b6bb28f7398?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "0) Генерация событий без дубликатов",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"eventsAmt\": 100\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{SIMPLE_EVENT_SERVICE}}/v1/events/generate",
+          "host": [
+            "{{SIMPLE_EVENT_SERVICE}}"
+          ],
+          "path": [
+            "v1",
+            "events",
+            "generate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "0) Генерация событий с дубликатами",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"eventsAmt\": 10\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{SIMPLE_EVENT_SERVICE}}/v1/events/generate-with-duplicates",
+          "host": [
+            "{{SIMPLE_EVENT_SERVICE}}"
+          ],
+          "path": [
+            "v1",
+            "events",
+            "generate-with-duplicates"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "1) Получить токен тестового пользователя",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has tokens', function () {\r",
+              "  pm.expect(json).to.have.property('access_token');\r",
+              "  pm.expect(json).to.have.property('refresh_token');\r",
+              "});\r",
+              "if (json && json.access_token) pm.collectionVariables.set('access_token', json.access_token);\r",
+              "if (json && json.refresh_token) pm.collectionVariables.set('refresh_token', json.refresh_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "grant_type=password&client_id=admin-cli&username=device-api-user&password=device-api-password",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{KEYCLOAK}}/realms/master/protocol/openid-connect/token",
+          "host": [
+            "{{KEYCLOAK}}"
+          ],
+          "path": [
+            "realms",
+            "master",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2) Создать устройство",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('202 Accepted', function () { pm.response.to.have.status(202); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has deviceId', function () {\r",
+              "  pm.expect(json).to.have.property('deviceId');\r",
+              "});\r",
+              "if (json && json.deviceId) pm.collectionVariables.set('deviceId', json.deviceId);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"deviceType\": \"something\",\r\n  \"meta\": \"new test device\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices",
+          "host": [
+            "{{DEVICE_SERVICE_LB}}"
+          ],
+          "path": [
+            "v1",
+            "devices"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3) Прочитать устройство",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "host": [
+            "{{DEVICE_SERVICE_LB}}"
+          ],
+          "path": [
+            "v1",
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4) Обновить устройство",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"deviceType\": \"electro\",\r\n  \"meta\": \"any meta info\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "host": [
+            "{{DEVICE_SERVICE_LB}}"
+          ],
+          "path": [
+            "v1",
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5) Удалить устройство",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "host": [
+            "{{DEVICE_SERVICE_LB}}"
+          ],
+          "path": [
+            "v1",
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "SIMPLE_EVENT_SERVICE",
+      "value": ""
+    },
+    {
+      "key": "DEVICE_SERVICE_LB",
+      "value": ""
+    },
+    {
+      "key": "DEVICE_SERVICE",
+      "value": ""
+    },
+    {
+      "key": "KEYCLOAK",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "deviceId",
+      "value": ""
+    }
+  ]
+}

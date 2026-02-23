@@ -9,12 +9,14 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
+import ru.dkalchenko.device.collector.mapper.DeviceMapper;
 import ru.dkalchenko.device.collector.metrics.CollectorMetrics;
 import ru.dkalchenko.device.collector.service.DeviceService;
 import ru.dkalchenko.device.collector.tracing.KafkaTraceContextRunner;
 
 /**
  * Kafka Consumer для обработки сообщений об устройствах из топика devices.v1.
+ * Обрабатывает поле operation: CREATE (сохранение), UPDATE (обновление), DELETE (удаление).
  * trace_id берётся из заголовка traceparent того же сообщения (парсится в KafkaTraceContextRunner).
  * Обрабатывает ошибки и отправляет проблемные сообщения в Dead Letter Topic.
  */
@@ -24,9 +26,10 @@ import ru.dkalchenko.device.collector.tracing.KafkaTraceContextRunner;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class DeviceListener {
 
-	private static final String SPAN_NAME = "save-device-postgres";
+	private static final String SPAN_NAME = "process-device-postgres";
 
 	DeviceService deviceService;
+	DeviceMapper deviceMapper;
 	CollectorMetrics metrics;
 	KafkaTraceContextRunner kafkaTraceContextRunner;
 
@@ -37,12 +40,19 @@ public class DeviceListener {
 	)
 	public void handleDeviceMessage(ConsumerRecord<String, GenericRecord> record, Acknowledgment acknowledgment) {
 		String key = record.key() != null ? record.key() : "";
+		GenericRecord value = record.value();
+		if (value == null) {
+			log.error("Received null device message: key={}, partition={}, offset={}", key, record.partition(), record.offset());
+			metrics.incrementDevicesFailed(key);
+			throw new IllegalArgumentException("Device message value cannot be null");
+		}
+		String dbOperation = deviceMapper.getOperation(value);
 
 		try {
-			kafkaTraceContextRunner.runInSpan(record.headers(), key, SPAN_NAME, () -> {
-				log.trace("Received device message: key={}, partition={}, offset={}",
-						key, record.partition(), record.offset());
-				deviceService.upsertDevice(record.value());
+			kafkaTraceContextRunner.runInSpan(record.headers(), key, SPAN_NAME, dbOperation, () -> {
+				log.trace("Received device message: key={}, partition={}, offset={}, operation={}",
+						key, record.partition(), record.offset(), dbOperation);
+				deviceService.processDevice(value);
 				acknowledgment.acknowledge();
 				metrics.incrementDevicesProcessed(key);
 			});

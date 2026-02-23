@@ -1,0 +1,79 @@
+device-service:
+  kafka:
+    device-topic: devices.v1
+  audit:
+    topic: audit.device-events.v1
+    topic-partitions: 3
+    topic-replicas: 1
+  cache:
+    key-prefix: "device:"
+    ttl-seconds: 300
+  sharding:
+    sharding-count: 3
+
+spring:
+  application:
+    name: device-service
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:sharding-sphere-config.yaml
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  flyway:
+    enabled: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL}
+      specific.avro.reader: true
+      auto.register.schemas: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/master}
+
+logging:
+  level:
+    ru.dkalchenko.device: DEBUG
+    device.audit: INFO
+    org.apache.shardingsphere: WARN
+  ch:
+    qos:
+      ru.dkalchenko.device: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  otlp:
+    logging:
+      export:
+        enabled: false
+    metrics:
+      export:
+        enabled: false

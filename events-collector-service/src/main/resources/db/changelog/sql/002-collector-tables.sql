@@ -11,6 +11,7 @@ PARTITION BY event_date
 ORDER BY (device_id, event_date, timestamp_ms, event_id);
 
 CREATE TABLE IF NOT EXISTS collector.device_outbox (
+    operation     String,
     device_id     String,
     device_type   String,
     created_at    Int64,          -- epoch millis, соответствует полю createdAt в Avro-схеме DeviceInfo

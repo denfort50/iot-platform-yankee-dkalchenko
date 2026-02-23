@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: Device Service API
+  version: 1.0.0
+  description: REST API для управления устройствами
+servers:
+  - url: /v1
+paths:
+  /devices:
+    post:
+      operationId: createDevice
+      summary: Создать устройство
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRequest'
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateResponse'
+  /devices/{deviceId}:
+    get:
+      operationId: getDevice
+      summary: Получить устройство по ID
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          description: Устройство не найдено
+    put:
+      operationId: updateDevice
+      summary: Обновить устройство
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRequest'
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+    delete:
+      operationId: deleteDevice
+      summary: Удалить устройство
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+components:
+  schemas:
+    DeviceRequest:
+      type: object
+      required:
+        - deviceType
+      properties:
+        deviceType:
+          type: string
+          description: Тип устройства
+        meta:
+          type: string
+          nullable: true
+          description: Метаданные (JSON-строка)
+    Device:
+      type: object
+      description: Модель устройства
+      properties:
+        deviceId:
+          type: string
+        deviceType:
+          type: string
+        createdAt:
+          type: integer
+          format: int64
+        meta:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    CreateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        deviceId:
+          type: string
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        deviceId:
+          type: string

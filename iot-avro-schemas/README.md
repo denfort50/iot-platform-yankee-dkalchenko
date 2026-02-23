@@ -81,6 +81,6 @@ repositories {
     }
 }
 dependencies {
-    implementation("ru.dkalchenko:iot-avro-schemas:1.0.0")
+    implementation("ru.dkalchenko:iot-avro-schemas:1.0.1")
 }
 ```

@@ -1,0 +1,31 @@
+server:
+  port: 8097
+
+spring:
+  flyway:
+    enabled: false
+  kafka:
+    bootstrap-servers: localhost:19092,localhost:19093,localhost:19094
+    properties:
+      schema.registry.url: http://localhost:8081
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: admin
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/master
+
+management:
+  server:
+    port: 9077
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

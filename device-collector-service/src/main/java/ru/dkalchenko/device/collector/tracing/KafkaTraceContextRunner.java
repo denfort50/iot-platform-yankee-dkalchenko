@@ -34,12 +34,13 @@ public class KafkaTraceContextRunner {
     OpenTelemetry openTelemetry;
 
     /**
-     * Парсит trace_id, создаёт спан, выполняет action.
+     * Парсит trace_id, создаёт спан с указанной операцией (CREATE/UPDATE/DELETE), выполняет action.
      */
-    public void runInSpan(@Nullable Headers headers, String deviceId, String spanName, Runnable action) {
+    public void runInSpan(@Nullable Headers headers, String deviceId, String spanName, String dbOperation, Runnable action) {
         String traceId = parseTraceId(headers);
         log.info("TraceId: {}", traceId);
         var otelTracer = openTelemetry.getTracer(INSTRUMENTATION_SCOPE);
+        String op = dbOperation != null && !dbOperation.isBlank() ? dbOperation : "CREATE";
 
         io.opentelemetry.api.trace.Span span;
         if (traceId != null) {
@@ -53,13 +54,13 @@ public class KafkaTraceContextRunner {
                     .setParent(Context.current().with(Span.wrap(remoteContext)))
                     .setAttribute("device.id", deviceId != null ? deviceId : "")
                     .setAttribute("messaging.source", "devices.v1")
-                    .setAttribute("db.operation", "upsert")
+                    .setAttribute("db.operation", op)
                     .startSpan();
         } else {
             span = otelTracer.spanBuilder(spanName)
                     .setAttribute("device.id", deviceId != null ? deviceId : "")
                     .setAttribute("messaging.source", "devices.v1")
-                    .setAttribute("db.operation", "upsert")
+                    .setAttribute("db.operation", op)
                     .startSpan();
         }
 

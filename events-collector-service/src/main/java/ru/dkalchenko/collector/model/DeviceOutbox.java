@@ -2,10 +2,12 @@ package ru.dkalchenko.collector.model;
 
 /**
  * Запись outbox для последующей публикации устройства в devices.v1.
+ * operation — тип операции (CREATE, UPDATE, DELETE) для сообщения в devices.v1.
  * Поля traceId и spanId хранят контекст трейса на момент записи в outbox,
  * чтобы при публикации продолжить тот же сквозной трейс (events.v1 → devices.v1).
  */
 public record DeviceOutbox(
+        String operation,
         String deviceId,
         String deviceType,
         Long createdAt,
@@ -17,6 +19,7 @@ public record DeviceOutbox(
 ) {
     public DeviceOutbox(DeviceOutbox base, String traceId, String spanId) {
         this(
+                base.operation(),
                 base.deviceId(),
                 base.deviceType(),
                 base.createdAt(),

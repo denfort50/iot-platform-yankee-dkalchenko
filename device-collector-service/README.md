@@ -156,7 +156,7 @@ export SCHEMA_REGISTRY_URL="http://localhost:8081"
 
 ## Запуск в Docker
 
-Описан в [README.md](../README.md) верхнего уровня (в корневой директории всей системы).
+Описан в [README.md](../README.md) верхнего уровня: `make all` или `make module-four` (корневая директория системы).
 
 ---
 

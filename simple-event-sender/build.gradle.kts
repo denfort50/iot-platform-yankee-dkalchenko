@@ -1,5 +1,8 @@
-val confluentVersion = "8.1.1"
-val apacheAvroVersion = "1.12.1"
+val versions = mapOf(
+    "confluentVersion" to "8.1.1",
+    "apacheAvroVersion" to "1.12.1",
+    "iotAvroSchemasVersion" to "1.0.1"
+)
 
 plugins {
     java
@@ -34,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("ru.dkalchenko:iot-avro-schemas:1.0.0")
+    implementation("ru.dkalchenko:iot-avro-schemas:${versions["iotAvroSchemasVersion"]}")
 
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -44,9 +47,9 @@ dependencies {
     implementation("org.springframework.kafka:spring-kafka")
     implementation("org.apache.kafka:kafka-clients")
 
-    implementation("io.confluent:kafka-avro-serializer:$confluentVersion")
-    implementation("io.confluent:kafka-schema-registry-client:$confluentVersion")
-    implementation("org.apache.avro:avro:$apacheAvroVersion")
+    implementation("io.confluent:kafka-avro-serializer:${versions["confluentVersion"]}")
+    implementation("io.confluent:kafka-schema-registry-client:${versions["confluentVersion"]}")
+    implementation("org.apache.avro:avro:${versions["apacheAvroVersion"]}")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

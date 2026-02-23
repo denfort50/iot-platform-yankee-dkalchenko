@@ -1,6 +1,6 @@
 # IoT Microservice Platform – система обработки событий электронных IoT-устройств
 
-Платформа включает: **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий). Общие Avro-схемы вынесены в модуль **iot-avro-schemas**.
+Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
 
 ## Технологический стек
 
@@ -30,8 +30,8 @@
 Файлы находятся в каталоге `diagrams/`:
 - **Context** (уровень системы) — [context.puml](diagrams/context.puml)
 - **Container** (уровень контейнеров) — [containers.puml](diagrams/containers.puml)
-- **Components** — [components_ecs.puml](diagrams/components_ecs.puml), [components_dcs.puml](diagrams/components_dcs.puml)
-- **Sequence** — [sequence_ecs.puml](diagrams/sequence_ecs.puml), [sequence_dcs.puml](diagrams/sequence_dcs.puml)
+- **Components** — [components_ecs.puml](diagrams/components_ecs.puml), [components_dcs.puml](diagrams/components_dcs.puml), [components_ds.puml](diagrams/components_ds.puml)
+- **Sequence** — [sequence_ecs.puml](diagrams/sequence_ecs.puml), [sequence_dcs.puml](diagrams/sequence_dcs.puml), [sequence_ds.puml](diagrams/sequence_ds.puml)
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -46,8 +46,20 @@ iot-platform-yankee-dkalchenko/
 │  ├─ components_dcs.puml             # Компоненты Device Collector Service
 │  ├─ sequence_ecs.puml               # Последовательности ECS
 │  └─ sequence_dcs.puml                # Последовательности DCS
-├─ iot-avro-schemas/                  # Общие Avro‑схемы (DeviceInfo, DeviceEvent, DeadLetterMessage)
+├─ iot-avro-schemas/                  # Общие Avro‑схемы (DeviceInfo, DeviceEvent, DeadLetterMessage, DeviceAuditEvent)
 │  ├─ src/main/resources/avro/
+│  └─ README.md
+├─ device-service-api/               # OpenAPI‑спецификация и Feign‑клиент для REST API Device Service
+│  ├─ src/main/resources/openapi/device-api.yaml
+│  └─ README.md
+├─ device-service/                   # REST API управления устройствами (CRUD, Kafka, шарды, Redis, Keycloak)
+│  ├─ src/main/java/ru/dkalchenko/device/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  ├─ application-docker.yaml
+│  │  └─ sharding-sphere-config.yaml
+│  ├─ Dockerfile
 │  └─ README.md
 ├─ device-collector-service/          # Сервис приёма сообщений об устройствах из Kafka → PostgreSQL (шарды)
 │  ├─ src/main/java/ru/dkalchenko/device/collector/...
@@ -76,16 +88,17 @@ iot-platform-yankee-dkalchenko/
 │  │  └─ application-docker.yaml
 │  ├─ Dockerfile
 │  └─ README.md
-├─ infrastructure/                    # Инфраструктура: observability, БД и т.д.
+├─ infrastructure/                    # Инфраструктура: observability, БД, nginx (LB)
 │  ├─ alloy/config.alloy
 │  ├─ grafana/provisioning/{datasources,dashboards}
 │  ├─ grafana/dashboards/
+│  ├─ nginx/nginx.conf                # Балансировщик для device-service (порт 8090)
 │  ├─ docker-compose.yaml
 │  ├─ .env
 │  └─ ...
 ├─ build.gradle.kts                   # Корневой Gradle‑конфиг (мультипроект)
 ├─ settings.gradle.kts                # Настройка модулей Gradle
-├─ Makefile                           # Сценарии запуска (start, module-three, only-needed, stop, clean)
+├─ Makefile                           # Сценарии: all, module-four, stop, clean, *-image
 └─ README.md
 ```
 
@@ -96,8 +109,13 @@ iot-platform-yankee-dkalchenko/
 ### Вариант A — через `Makefile` (рекомендуется)
 
 ```bash
-# Полный запуск: вся инфраструктура + все сервисы
+# Полный запуск: поднимает Kafka, Schema Registry, Nexus → собирает iot-avro-schemas и device-service-api → поднимает все контейнеры
 make all
+```
+
+```bash
+# Только сервисы модуля 4 (device-service, device-collector, events-collector, simple-event-sender + нужная инфраструктура)
+make module-four
 ```
 
 ```bash
@@ -156,8 +174,10 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Grafana                             | 3000             | Dashboard + Explore                        |
 | Tempo                               | 3200             | Хранилище трассировок (OTLP)               |
 | Loki                                | 3100             | Хранилище логов                            |
-| Device Collector Service            | 8096             | Приём устройств из Kafka → PostgreSQL      |
-| Events Collector Service            | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
+| Device Service                      | 8097–8099        | REST API управления устройствами (реплики) |
+| device-service-lb (Nginx)           | 8090, 9070       | API device-service и Actuator (балансировка) |
+| Device Collector Service           | 8096             | Приём устройств из Kafka → PostgreSQL      |
+| Events Collector Service           | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
 | Simple Event Sender                 | 8092             | REST API генерации тестовых событий        |
 
 ## Наблюдаемость

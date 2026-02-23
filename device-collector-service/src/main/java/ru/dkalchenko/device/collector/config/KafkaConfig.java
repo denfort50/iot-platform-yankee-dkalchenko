@@ -160,7 +160,7 @@ public class KafkaConfig {
 	}
 
 	/**
-	 * Читает traceId из MDC (заполняется в KafkaTraceContextRunner.runInSpan из текущего спана).
+	 * Читает traceId из MDC.
 	 */
 	private static String getTraceIdFromMdc() {
 		String traceId = MDC.get("traceId");

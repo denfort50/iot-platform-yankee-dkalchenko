@@ -1,10 +1,15 @@
+val versions = mapOf(
+    "schemaRegistryClientVersion" to "8.1.1",
+    "apacheAvroVersion" to "1.12.1"
+)
+
 plugins {
     java
     `maven-publish`
 }
 
 group = "ru.dkalchenko"
-version = "1.0.0"
+version = "1.0.1"
 
 java {
     toolchain {
@@ -18,8 +23,8 @@ repositories {
 }
 
 dependencies {
-    implementation("io.confluent:kafka-schema-registry-client:8.1.1")
-    implementation("org.apache.avro:avro:1.12.1")
+    implementation("io.confluent:kafka-schema-registry-client:${versions["schemaRegistryClientVersion"]}")
+    implementation("org.apache.avro:avro:${versions["apacheAvroVersion"]}")
 }
 
 // Регистрация Avro-схем в Schema Registry при сборке (Schema Registry — порт 8081, Nexus — 8082)

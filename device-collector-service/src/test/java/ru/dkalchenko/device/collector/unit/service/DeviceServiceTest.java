@@ -54,6 +54,7 @@ class DeviceServiceTest {
         deviceSchema = new Schema.Parser().parse("""
             {"type":"record","name":"DeviceDto","namespace":"com.nashkod.avro",
              "fields":[
+               {"name":"operation","type":"string"},
                {"name":"deviceId","type":"string"},
                {"name":"deviceType","type":"string"},
                {"name":"createdAt","type":"long"},
@@ -61,6 +62,7 @@ class DeviceServiceTest {
              ]}
             """);
         avroRecord = new GenericData.Record(deviceSchema);
+        avroRecord.put("operation", "CREATE");
         avroRecord.put("deviceId", DEVICE_ID);
         avroRecord.put("deviceType", DEVICE_TYPE);
         avroRecord.put("createdAt", CREATED_AT);
@@ -68,14 +70,15 @@ class DeviceServiceTest {
     }
 
     @Test
-    void whenUpsertThenCallsRepositoryWithMappedDevice() {
+    void whenCreateThenCallsUpsertWithMappedDevice() {
         Instant now = Instant.now();
         Device device = new Device(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META, now);
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("CREATE");
         when(deviceMapper.toDevice(avroRecord)).thenReturn(device);
         when(deviceRepository.upsertDevice(eq(DEVICE_ID), eq(DEVICE_TYPE), eq(CREATED_AT), eq(META), any(Instant.class)))
                 .thenReturn(1);
 
-        deviceService.upsertDevice(avroRecord);
+        deviceService.processDevice(avroRecord);
 
         verify(deviceMapper).toDevice(avroRecord);
         ArgumentCaptor<Instant> updatedAtCaptor = ArgumentCaptor.forClass(Instant.class);
@@ -90,15 +93,48 @@ class DeviceServiceTest {
     }
 
     @Test
-    void whenSameDeviceUpsertedTwiceThenRepositoryCalledTwiceIdempotent() {
+    void whenUpdateThenCallsUpdateDevice() {
+        avroRecord.put("operation", "UPDATE");
+        avroRecord.put("createdAt", null);
+        ru.dkalchenko.device.collector.model.DeviceUpdate update =
+                new ru.dkalchenko.device.collector.model.DeviceUpdate(DEVICE_ID, DEVICE_TYPE, META);
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("UPDATE");
+        when(deviceMapper.toDeviceForUpdate(avroRecord)).thenReturn(update);
+        when(deviceRepository.updateDevice(eq(DEVICE_ID), eq(DEVICE_TYPE), eq(META), any(Instant.class))).thenReturn(1);
+
+        deviceService.processDevice(avroRecord);
+
+        verify(deviceMapper).toDeviceForUpdate(avroRecord);
+        verify(deviceRepository).updateDevice(eq(DEVICE_ID), eq(DEVICE_TYPE), eq(META), any(Instant.class));
+        verify(deviceRepository, never()).upsertDevice(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void whenDeleteThenCallsDeleteByDeviceId() {
+        avroRecord.put("operation", "DELETE");
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("DELETE");
+        when(deviceMapper.getDeviceId(avroRecord)).thenReturn(DEVICE_ID);
+        when(deviceRepository.deleteByDeviceId(DEVICE_ID)).thenReturn(1);
+
+        deviceService.processDevice(avroRecord);
+
+        verify(deviceMapper).getDeviceId(avroRecord);
+        verify(deviceRepository).deleteByDeviceId(DEVICE_ID);
+        verify(deviceRepository, never()).upsertDevice(any(), any(), any(), any(), any());
+        verify(deviceRepository, never()).updateDevice(any(), any(), any(), any());
+    }
+
+    @Test
+    void whenSameDeviceCreateTwiceThenRepositoryCalledTwiceIdempotent() {
         Device device = new Device(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META, Instant.now());
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("CREATE");
         when(deviceMapper.toDevice(avroRecord)).thenReturn(device);
         when(deviceRepository.upsertDevice(eq(DEVICE_ID), eq(DEVICE_TYPE), eq(CREATED_AT), eq(META), any(Instant.class)))
                 .thenReturn(1)
                 .thenReturn(1);
 
-        deviceService.upsertDevice(avroRecord);
-        deviceService.upsertDevice(avroRecord);
+        deviceService.processDevice(avroRecord);
+        deviceService.processDevice(avroRecord);
 
         verify(deviceMapper, times(2)).toDevice(avroRecord);
         verify(deviceRepository, times(2)).upsertDevice(
@@ -112,9 +148,10 @@ class DeviceServiceTest {
 
     @Test
     void whenMapperThrowsIllegalArgumentThenPropagates() {
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("CREATE");
         when(deviceMapper.toDevice(avroRecord)).thenThrow(new IllegalArgumentException("deviceId is required"));
 
-        assertThatThrownBy(() -> deviceService.upsertDevice(avroRecord))
+        assertThatThrownBy(() -> deviceService.processDevice(avroRecord))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("deviceId is required");
 
@@ -124,10 +161,11 @@ class DeviceServiceTest {
     @Test
     void whenRepositoryReturnsZeroThenNoException() {
         Device device = new Device(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META, Instant.now());
+        when(deviceMapper.getOperation(avroRecord)).thenReturn("CREATE");
         when(deviceMapper.toDevice(avroRecord)).thenReturn(device);
         when(deviceRepository.upsertDevice(any(), any(), any(), any(), any())).thenReturn(0);
 
-        deviceService.upsertDevice(avroRecord);
+        deviceService.processDevice(avroRecord);
 
         verify(deviceRepository).upsertDevice(eq(DEVICE_ID), eq(DEVICE_TYPE), eq(CREATED_AT), eq(META), any(Instant.class));
     }
