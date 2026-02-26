@@ -13,6 +13,7 @@ System_Boundary(system, "IoT Microservice Platform") {
         Container(ecs, "Events Collector Service", "Spring Boot", "Консьюмер необработанных событий из Kafka")
         Container(dcs, "Device Collector Service", "Spring Boot", "Консьюмер данных об устройствах из Kafka")
         Container(dms, "Device Service", "Spring Boot", "CRUD API для работы с устройствами")
+        Container(fep, "Failed Events Processor", "Spring Boot", "Сервис для обработки DLQ-сообщений")
         Container(pg_exp_iot, "Postgres Exporter (IoT)", "postgres-exporter", "Экспорт метрик IoT Platform Postgres")
         Container(redis_exp_iot, "Redis Exporter", "redis-exporter", "Экспорт метрик Redis")
         Container(redis, "Redis", "Redis", "Кэш и in-memory хранилище")
@@ -58,6 +59,8 @@ Rel(dcs, iot_pg, "Отправка информации об устройств�
 Rel(dms, iot_pg, "READ операции с устройствами", "JDBC")
 Rel(dms, keycloak, "Аутентификация и авторизация", "HTTP")
 Rel(dms, kafka_cluster, "CREATE, UPDATE, DELETE операции с устройствами", "Kafka Protocol")
+Rel(fep, kafka_cluster, "Подписка на DLQ-топик", "Kafka Protocol")
+Rel(fep, minio, "Сохранение DLQ-сообщений", "HTTP")
 
 Rel(engineer, grafana, "Просматривает метрики, логи и трейсы", "HTTP")
 Rel(engineer, kafka_ui, "Администрирует Kafka", "HTTP")

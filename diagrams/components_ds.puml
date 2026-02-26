@@ -6,7 +6,7 @@ LAYOUT_WITH_LEGEND()
 Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt")
 Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
 ContainerDb(postgres, "PostgreSQL", "Шардированная база данных", "Хранит информацию об устройствах")
-Container(redis, "Redis", "Cache-Aside pattern", "Хранит в кэше данные об устройствах")
+Container_Ext(redis, "Redis", "Cache-Aside pattern", "Хранит в кэше данные об устройствах")
 
 Container_Boundary(dms, "Device Service", "Spring Boot", "Сервис предоставляет CRUD API для работы с устройствами") {
     Component(deviceController, "Device Controller", "Предоставляет CRUD-эндпойнты")

@@ -1,0 +1,22 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Container_Ext(kafka, "Kafka", "Очереди событий", "devices.v1, devices.v1.dlt")
+Container_Ext(schema_registry, "Schema Registry", "Confluent", "Хранение Avro схем")
+Container_Ext(minio, "MinIO", "S3-compatible Object Storage", "Объектное хранилище файлов и данных")
+
+Container_Boundary(fep, "Failed Events Processor", "Spring Boot", "Сервис для обработки DLQ-сообщений") {
+    Component(dlqListener, "DLQ Listener", "Слушает DLQ-топик")
+    Component(dlqService, "DLQ Service", "Выполняет бизнес-логику обработки данных")
+    Component(dlqRepository, "DLQ Repository", "Сохраняет записи в объектное хранилище")
+}
+
+Rel(kafka, dlqListener, "DLQ-сообщения передаются подписчику")
+Rel(dlqListener, schema_registry, "Десериализует сообщения по схеме Avro")
+Rel(dlqListener, dlqService, "Сообщения передаются на обработку")
+Rel(dlqService, dlqRepository, "Передает сообщения на сохранение в хранилище")
+Rel(dlqRepository, minio, "Сохраняет сообщения в S3 совместимое хранилище")
+
+@enduml
