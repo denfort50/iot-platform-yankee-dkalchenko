@@ -12,6 +12,7 @@ plugins {
 	java
 	id("org.springframework.boot") version "3.5.10"
 	id("io.spring.dependency-management") version "1.1.7"
+	id("org.openapi.generator") version "7.6.0"
 	jacoco
 }
 
@@ -140,4 +141,68 @@ tasks.bootRun {
 				}
 		}
 	}
+}
+
+// Конфигурация для извлечения OpenAPI-спецификации из JAR зависимости device-service-api (без транзитивов)
+val openApiSpecConfig by configurations.creating {
+	isTransitive = false
+}
+dependencies {
+	openApiSpecConfig("ru.dkalchenko:device-service-api:${versions["deviceServiceApiVersion"]}")
+}
+
+val openApiExtractDir = layout.buildDirectory.dir("openapi-extracted")
+
+tasks.register<Copy>("extractOpenApiSpec") {
+	description = "Извлекает OpenAPI-спецификацию из JAR device-service-api"
+	from(zipTree(openApiSpecConfig.singleFile))
+	into(openApiExtractDir)
+	include("openapi/device-api.yaml")
+}
+
+val openApiOutputDir = file("build/generated/sources/openapi/server")
+// Путь к спецификации после извлечения (extractOpenApiSpec должен выполниться первым)
+val openApiSpecPath = file("build/openapi-extracted/openapi/device-api.yaml").absolutePath
+
+tasks.named("openApiGenerate") {
+	dependsOn(tasks["extractOpenApiSpec"])
+}
+
+openApiGenerate {
+	generatorName.set("spring")
+	inputSpec.set(openApiSpecPath)
+	outputDir.set(openApiOutputDir.absolutePath)
+	apiPackage.set("ru.dkalchenko.device.api.server")
+	modelPackage.set("ru.dkalchenko.device.api.model")
+	invokerPackage.set("ru.dkalchenko.device.api.server")
+	configOptions.set(mapOf(
+		"library" to "spring-boot",
+		"delegatePattern" to "true",
+		"useJakartaEe" to "true",
+		"useBeanValidation" to "true",
+		"useSpringBoot3" to "true",
+		"useResponseEntity" to "true",
+		"openApiNullable" to "false",
+		"dateLibrary" to "java8",
+		"serializationLibrary" to "jackson",
+		"performBeanValidation" to "true",
+		"documentationProvider" to "none"
+	))
+	importMappings.set(mapOf(
+		"Device" to "ru.dkalchenko.device.api.model.Device",
+		"DeviceRequest" to "ru.dkalchenko.device.api.model.DeviceRequest",
+		"CreateResponse" to "ru.dkalchenko.device.api.model.CreateResponse",
+		"MessageResponse" to "ru.dkalchenko.device.api.model.MessageResponse"
+	))
+}
+
+// Подключаем только серверный API (controller, delegate, Api); модели используем из зависимости device-service-api
+sourceSets["main"].java.srcDir("${openApiOutputDir}/src/main/java")
+sourceSets["main"].java.exclude(
+	"**/ru/dkalchenko/device/api/model/**",
+	"**/org/openapitools/configuration/**",
+	"**/OpenApiGeneratorApplication.java"
+)
+tasks.compileJava {
+	dependsOn(tasks.openApiGenerate)
 }

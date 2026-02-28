@@ -7,15 +7,8 @@ spring:
     redis:
       host: localhost
       port: 6379
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://fake-issuer.example.com/
 
 device-service:
-  kafka:
-    changes-topic: devices.v1
   cache:
     key-prefix: "device:test:"
     ttl-seconds: 60

@@ -2,17 +2,23 @@ package ru.dkalchenko.device.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import ru.dkalchenko.device.testcontainer.KeycloakInit;
 import ru.dkalchenko.device.testcontainer.base.AbstractIntegrationTest;
+import ru.dkalchenko.device.testcontainer.containers.KeycloakTestContainer;
 import ru.dkalchenko.device.testcontainer.containers.PostgresShardTestContainers;
 
 import java.net.URI;
@@ -22,11 +28,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Полный интеграционный тест device-service: REST API + ShardingSphere (3 шарда) + Redis + Kafka.
- * Проверяет: GET (cache-aside, чтение из БД), POST create (отправка в Kafka), PUT update, DELETE.
+ * Полный интеграционный тест device-service с Keycloak: REST API защищён JWT,
+ * ShardingSphere (3 шарда) + Redis + Kafka. Контроллер тестируется с реальной OAuth2 Resource Server.
  */
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "keycloak"})
 class FullIntegrationTests extends AbstractIntegrationTest {
+
+	private static String accessToken;
 
 	@Autowired
 	TestRestTemplate restTemplate;
@@ -35,10 +43,26 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 	@Autowired
 	ObjectMapper objectMapper;
 
+	@BeforeAll
+	static void startKeycloakAndObtainToken() {
+		KeycloakTestContainer.INSTANCE.start();
+		String keycloakUrl = "http://localhost:" + KeycloakTestContainer.INSTANCE.getMappedPort(8080);
+		KeycloakInit.run(keycloakUrl);
+		accessToken = KeycloakInit.getTestUserToken(keycloakUrl);
+	}
+
+	@DynamicPropertySource
+	static void keycloakProperties(DynamicPropertyRegistry registry) {
+		String issuerUri = "http://localhost:" + KeycloakTestContainer.INSTANCE.getMappedPort(8080) + "/realms/master";
+		registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> issuerUri);
+	}
+
 	@Test
 	void whenGetDeviceAndWhenNotFoundThenReturns404() {
 		String deviceId = "device-" + UUID.randomUUID();
-		ResponseEntity<String> response = restTemplate.getForEntity("/v1/devices/" + deviceId, String.class);
+		ResponseEntity<String> response = restTemplate.exchange(
+				RequestEntity.get(URI.create("/v1/devices/" + deviceId)).headers(authHeaders()).build(),
+				String.class);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 	}
 
@@ -50,7 +74,9 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		String meta = "{\"location\":\"room1\"}";
 		insertDeviceInShard(deviceId, deviceType, createdAt, meta);
 
-		ResponseEntity<Map> response = restTemplate.getForEntity("/v1/devices/" + deviceId, Map.class);
+		ResponseEntity<Map> response = restTemplate.exchange(
+				RequestEntity.get(URI.create("/v1/devices/" + deviceId)).headers(authHeaders()).build(),
+				Map.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody()).isNotNull();
@@ -65,6 +91,7 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		String body = "{\"deviceType\":\"sensor\",\"meta\":\"{}\"}";
 		RequestEntity<String> request = RequestEntity
 				.post(URI.create("/v1/devices"))
+				.headers(authHeaders())
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(body);
 
@@ -87,6 +114,7 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		String body = "{\"deviceType\":\"actuator\",\"meta\":\"updated\"}";
 		RequestEntity<String> request = RequestEntity
 				.put(URI.create("/v1/devices/" + deviceId))
+				.headers(authHeaders())
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(body);
 
@@ -103,7 +131,7 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		insertDeviceInShard(deviceId, "sensor", System.currentTimeMillis(), "{}");
 
 		ResponseEntity<Map> response = restTemplate.exchange(
-				RequestEntity.delete(URI.create("/v1/devices/" + deviceId)).build(),
+				RequestEntity.delete(URI.create("/v1/devices/" + deviceId)).headers(authHeaders()).build(),
 				Map.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
@@ -119,7 +147,9 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		String meta = "{\"a\":1}";
 		insertDeviceInShard(deviceId, deviceType, createdAt, meta);
 
-		ResponseEntity<Map> get1 = restTemplate.getForEntity("/v1/devices/" + deviceId, Map.class);
+		ResponseEntity<Map> get1 = restTemplate.exchange(
+				RequestEntity.get(URI.create("/v1/devices/" + deviceId)).headers(authHeaders()).build(),
+				Map.class);
 		assertThat(get1.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(get1.getBody().get("deviceType")).isEqualTo(deviceType);
 
@@ -127,12 +157,20 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 		String updateBody = "{\"deviceType\":\"actuator\",\"meta\":\"{\\\"b\\\":2}\"}";
 		restTemplate.exchange(
 				RequestEntity.put(URI.create("/v1/devices/" + deviceId))
+						.headers(authHeaders())
 						.contentType(MediaType.APPLICATION_JSON)
 						.body(updateBody),
 				Map.class);
 		assertThat(restTemplate.exchange(
-				RequestEntity.delete(URI.create("/v1/devices/" + deviceId)).build(),
+				RequestEntity.delete(URI.create("/v1/devices/" + deviceId)).headers(authHeaders()).build(),
 				Map.class).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+	}
+
+	@Test
+	void whenRequestWithoutTokenThenReturns401() {
+		String deviceId = "device-" + UUID.randomUUID();
+		ResponseEntity<String> response = restTemplate.getForEntity("/v1/devices/" + deviceId, String.class);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 	}
 
 	private static int expectedShardIndex(String deviceId) {
@@ -160,5 +198,11 @@ class FullIntegrationTests extends AbstractIntegrationTest {
 				"INSERT INTO collector.devices (device_id, device_type, created_at, meta, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
 				deviceId, deviceType, createdAt, meta != null ? meta : "");
 		ds.close();
+	}
+
+	private HttpHeaders authHeaders() {
+		HttpHeaders headers = new HttpHeaders();
+		headers.setBearerAuth(accessToken);
+		return headers;
 	}
 }

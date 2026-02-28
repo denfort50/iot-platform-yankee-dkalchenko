@@ -1,65 +1,61 @@
 package ru.dkalchenko.device.controller;
 
-import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Service;
+import ru.dkalchenko.device.api.model.CreateResponse;
 import ru.dkalchenko.device.api.model.Device;
 import ru.dkalchenko.device.api.model.DeviceRequest;
+import ru.dkalchenko.device.api.model.MessageResponse;
+import ru.dkalchenko.device.api.server.DevicesApiDelegate;
 import ru.dkalchenko.device.service.DeviceService;
 
-import java.util.Map;
-
 /**
- * REST API для управления устройствами.
+ * Реализация контракта API устройств (OpenAPI): делегирует вызовы в {@link DeviceService}.
  */
 @Slf4j
-@RestController
-@RequestMapping("/v1/devices")
+@Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class DeviceController {
+public class DeviceController implements DevicesApiDelegate {
 
 	DeviceService deviceService;
 
-	@PostMapping
-	public ResponseEntity<Map<String, String>> createDevice(@Valid @RequestBody DeviceRequest request) {
-		String deviceId = deviceService.createDevice(request);
+	@Override
+	public ResponseEntity<CreateResponse> createDevice(DeviceRequest deviceRequest) {
+		String deviceId = deviceService.createDevice(deviceRequest);
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
-				.body(Map.of("message", "Device create request accepted", "deviceId", deviceId));
+				.body(new CreateResponse()
+						.message("Device create request accepted")
+						.deviceId(deviceId));
 	}
 
-	@GetMapping("/{deviceId}")
-	public ResponseEntity<Device> getDevice(@PathVariable String deviceId) {
+	@Override
+	public ResponseEntity<Device> getDevice(String deviceId) {
 		return deviceService.getDevice(deviceId)
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
 	}
 
-	@PutMapping("/{deviceId}")
-	public ResponseEntity<Map<String, String>> updateDevice(
-			@PathVariable String deviceId,
-			@Valid @RequestBody DeviceRequest request) {
-		deviceService.updateDevice(deviceId, request);
+	@Override
+	public ResponseEntity<MessageResponse> updateDevice(String deviceId, DeviceRequest deviceRequest) {
+		deviceService.updateDevice(deviceId, deviceRequest);
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
-				.body(Map.of("message", "Device update request accepted", "deviceId", deviceId));
+				.body(new MessageResponse()
+						.message("Device update request accepted")
+						.deviceId(deviceId));
 	}
 
-	@DeleteMapping("/{deviceId}")
-	public ResponseEntity<Map<String, String>> deleteDevice(@PathVariable String deviceId) {
+	@Override
+	public ResponseEntity<MessageResponse> deleteDevice(String deviceId) {
 		deviceService.deleteDevice(deviceId);
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
-				.body(Map.of("message", "Device delete request accepted", "deviceId", deviceId));
+				.body(new MessageResponse()
+						.message("Device delete request accepted")
+						.deviceId(deviceId));
 	}
 }
