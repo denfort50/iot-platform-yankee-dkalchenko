@@ -29,6 +29,11 @@
       "doc": "Текст ошибки"
     },
     {
+      "name": "stackTrace",
+      "type": "string",
+      "doc": "Трассировка стека"
+    },
+    {
       "name": "traceId",
       "type": "string",
       "doc": "Trace ID, в рамках которого случилась ошибка"
