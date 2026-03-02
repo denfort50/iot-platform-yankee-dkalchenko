@@ -148,37 +148,37 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 ---
 ## Порты и сервисы
 
-| Сервис                              | Порт (host)      | Описание                                   |
-|-------------------------------------|------------------|--------------------------------------------|
-| Postgres Shard 0 (device-collector) | 5436             | Контейнер `postgres-shard0`                |
-| Postgres Shard 1 (device-collector) | 5437             | Контейнер `postgres-shard1`                |
-| Postgres Shard 2 (device-collector) | 5438             | Контейнер `postgres-shard2`                |
-| Postgres (keycloak)                 | 5433             | Контейнер `keycloak-postgres`              |
-| Postgres (camunda)                  | 5435             | Контейнер `camunda-postgres`               |
-| ClickHouse                          | 8123             | Хранилище телеметрии                       |
-| Redis                               | 6379             | Кэш и in-memory хранилище                  |
-| Redis Insight                       | 5540             | Визуальный интерфейс Redis                 |
-| Keycloak                            | 8080             | Dev-мод                                    |
-| Kafka                               | 9092, 9093, 9094 | Брокеры №1–3                               |
-| Schema Registry                     | 8081             | Управление Avro-схемами                    |
-| Kafka UI                            | 8070             | Визуальный интерфейс Kafka                 |
-| Nexus                               | 8082             | Maven-репозиторий (iot-avro-schemas и др.) |
-| MinIO                               | 9001, 9002       | S3-совместимое хранилище + консоль         |
-| Camunda                             | 8088             | Workflow и BPM движок                      |
-| Postgres Exporter (shard 0/1/2)     | 9188, 9191, 9192 | Метрики PostgreSQL шардов                  |
-| Postgres Exporter (keycloak)        | 9189             | Метрики Keycloak Postgres                  |
-| Postgres Exporter (camunda)         | 9190             | Метрики Camunda Postgres                   |
-| Kafka Exporter                      | 9308             | Метрики Kafka                              |
-| Prometheus                          | 9090             | Сбор метрик                                |
-| Alloy                               | 9080             | OTel-коллектор (трассировки, метрики)      |
-| Grafana                             | 3000             | Dashboard + Explore                        |
-| Tempo                               | 3200             | Хранилище трассировок (OTLP)               |
-| Loki                                | 3100             | Хранилище логов                            |
-| Device Service                      | 8097–8099        | REST API управления устройствами (реплики) |
-| device-service-lb (Nginx)           | 8090, 9070       | API device-service и Actuator (балансировка) |
-| Device Collector Service           | 8096             | Приём устройств из Kafka → PostgreSQL      |
-| Events Collector Service           | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
-| Simple Event Sender                 | 8092             | REST API генерации тестовых событий        |
+| Сервис                               | Порт (host)      | Описание                                   |
+|--------------------------------------|------------------|--------------------------------------------|
+| Postgres Shard 0 (device-collector)  | 5436             | Контейнер `postgres-shard0`                |
+| Postgres Shard 1 (device-collector)  | 5437             | Контейнер `postgres-shard1`                |
+| Postgres Shard 2 (device-collector)  | 5438             | Контейнер `postgres-shard2`                |
+| Postgres (keycloak)                  | 5433             | Контейнер `keycloak-postgres`              |
+| Postgres (camunda)                   | 5435             | Контейнер `camunda-postgres`               |
+| ClickHouse                           | 8123             | Хранилище телеметрии                       |
+| Redis                                | 6379             | Кэш и in-memory хранилище                  |
+| Redis Insight                        | 5540             | Визуальный интерфейс Redis                 |
+| Keycloak                             | 8080             | Dev-мод                                    |
+| Kafka                                | 9092, 9093, 9094 | Брокеры №1–3                               |
+| Schema Registry                      | 8081             | Управление Avro-схемами                    |
+| Kafka UI                             | 8070             | Визуальный интерфейс Kafka                 |
+| Nexus                                | 8082             | Maven-репозиторий (iot-avro-schemas и др.) |
+| MinIO                                | 9001, 9002       | S3-совместимое хранилище + консоль         |
+| Camunda                              | 8088             | Workflow и BPM движок                      |
+| Postgres Exporter (shard 0/1/2)      | 9188, 9191, 9192 | Метрики PostgreSQL шардов                  |
+| Postgres Exporter (keycloak)         | 9189             | Метрики Keycloak Postgres                  |
+| Postgres Exporter (camunda)          | 9190             | Метрики Camunda Postgres                   |
+| Kafka Exporter                       | 9308             | Метрики Kafka                              |
+| Prometheus                           | 9090             | Сбор метрик                                |
+| Alloy                                | 9080             | OTel-коллектор (трассировки, метрики)      |
+| Grafana                              | 3000             | Dashboard + Explore                        |
+| Tempo                                | 3200             | Хранилище трассировок (OTLP)               |
+| Loki                                 | 3100             | Хранилище логов                            |
+| Device Service                       | 8097–8099        | REST API управления устройствами (реплики) |
+| Device Service Load Balancer (Nginx) | 8090, 9070       | API device-service (балансировка)          |
+| Device Collector Service             | 8096             | Приём устройств из Kafka → PostgreSQL      |
+| Events Collector Service             | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
+| Simple Event Sender                  | 8092             | REST API генерации тестовых событий        |
 
 ## Наблюдаемость
 
