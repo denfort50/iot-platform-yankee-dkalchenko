@@ -1,0 +1,25 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Person(engineer, "Инженер", "Управляет устройствами и просматривает события через UI/API")
+
+ContainerDb_Ext(postgres, "PostgreSQL", "Реляционная база данных", "Хранение команд для роутеров")
+Container_Ext(keycloak, "Keycloak", "Провайдер Security", "Аутентификация и авторизация")
+Container_Ext(device, "Маршрутизаторы", "Устройства, отправляющие телеметрию")
+
+Container_Boundary(rms, "Router Management Service", "Go / Gin", "Сервис для управления роутерами") {
+    Component(commandHandler, "Command Handler", "gRPC")
+    Component(commandService, "Command Service", "Выполняет бизнес-логику обработки запросов")
+    Component(commandRepository, "Command Repository", "Сохраняет записи в реляционную базу данных")
+}
+
+Rel(engineer, keycloak, "Авторизация и аутентификация")
+Rel(engineer, commandHandler, "Отправка команд для роутеров")
+Rel(device, commandHandler, "Запрос имеющихся команд / подтверждение их выполнения")
+Rel(commandHandler, commandService, "Передача команд на обработку")
+Rel(commandService, commandRepository, "Передача команд на исполнение в БД")
+Rel(commandRepository, postgres, "Сохранение/обновление команд в БД")
+
+@enduml

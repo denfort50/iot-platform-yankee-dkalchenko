@@ -712,6 +712,37 @@ services:
       retries: 5
       start_period: 30s
 
+  failed-events-processor:
+    build:
+      context: ..
+      dockerfile: failed-events-processor/Dockerfile
+    image: failed-events-processor:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8098:8080"
+      - "9078:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   device-service:
     build:
       context: ..

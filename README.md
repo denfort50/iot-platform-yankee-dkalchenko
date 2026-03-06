@@ -1,6 +1,6 @@
 # IoT Microservice Platform – система обработки событий электронных IoT-устройств
 
-Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
+Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий), **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
 
 ## Технологический стек
 
@@ -27,11 +27,20 @@
 ## Архитектура
 ### Диаграммы архитектуры (C4 + PlantUML)
 
-Файлы находятся в каталоге `diagrams/`:
-- **Context** (уровень системы) — [context.puml](diagrams/context.puml)
-- **Container** (уровень контейнеров) — [containers.puml](diagrams/containers.puml)
-- **Components** — [components_ecs.puml](diagrams/components_ecs.puml), [components_dcs.puml](diagrams/components_dcs.puml), [components_ds.puml](diagrams/components_ds.puml)
-- **Sequence** — [sequence_ecs.puml](diagrams/sequence_ecs.puml), [sequence_dcs.puml](diagrams/sequence_dcs.puml), [sequence_ds.puml](diagrams/sequence_ds.puml)
+Диаграммы описывают платформу на уровнях C4: контекст системы, контейнеры (микросервисы), компоненты внутри сервисов и диаграммы последовательностей. Файлы находятся в каталоге `diagrams/`:
+
+| Уровень | Файл | Описание |
+|---------|------|----------|
+| **Context** | [context.puml](diagrams/context.puml) | Система в контексте: инженер, IoT-устройства, Kafka, Keycloak, Grafana, Camunda |
+| **Container** | [containers.puml](diagrams/containers.puml) | Контейнеры: ECS, DCS, Device Service, Failed Events Processor, MinIO, Kafka, observability |
+| **Components** | [components_ecs.puml](diagrams/components_ecs.puml) | Events Collector: Event Listener, Deduplication, Outbox Processor, ClickHouse |
+|               | [components_dcs.puml](diagrams/components_dcs.puml) | Device Collector: Device Listener, DLT Producer, ShardingSphere → PostgreSQL |
+|               | [components_ds.puml](diagrams/components_ds.puml) | Device Service: Device Controller, Redis Client, Device Changes Publisher |
+|               | [components_fep.puml](diagrams/components_fep.puml) | Failed Events Processor: DLQ Listener, DLQ Service, DLQ Repository → MinIO |
+| **Sequence**  | [sequence_ecs.puml](diagrams/sequence_ecs.puml) | Поток событий ECS: Kafka → дедупликация → ClickHouse → Outbox → Kafka |
+|               | [sequence_dcs.puml](diagrams/sequence_dcs.puml) | Поток DCS: Kafka → устройство → PostgreSQL (или DLT при ошибке) |
+|               | [sequence_ds.puml](diagrams/sequence_ds.puml) | Поток Device Service: CRUD → Redis/PostgreSQL → Kafka |
+|               | [sequence_fep.puml](diagrams/sequence_fep.puml) | Поток FEP: DLQ → парсинг → сохранение в MinIO |
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -41,11 +50,15 @@
 iot-platform-yankee-dkalchenko/
 ├─ diagrams/                          # C4‑диаграммы архитектуры (PlantUML)
 │  ├─ context.puml                    # Контекст (уровень системы)
-│  ├─ containers.puml                 # Контейнеры
+│  ├─ containers.puml                 # Контейнеры (микросервисы, Kafka, MinIO, observability)
 │  ├─ components_ecs.puml             # Компоненты Events Collector Service
 │  ├─ components_dcs.puml             # Компоненты Device Collector Service
+│  ├─ components_ds.puml              # Компоненты Device Service
+│  ├─ components_fep.puml             # Компоненты Failed Events Processor
 │  ├─ sequence_ecs.puml               # Последовательности ECS
-│  └─ sequence_dcs.puml                # Последовательности DCS
+│  ├─ sequence_dcs.puml               # Последовательности DCS
+│  ├─ sequence_ds.puml                # Последовательности Device Service
+│  └─ sequence_fep.puml               # Последовательности Failed Events Processor (DLQ → MinIO)
 ├─ iot-avro-schemas/                  # Общие Avro‑схемы (DeviceInfo, DeviceEvent, DeadLetterMessage, DeviceAuditEvent)
 │  ├─ src/main/resources/avro/
 │  └─ README.md
@@ -88,6 +101,14 @@ iot-platform-yankee-dkalchenko/
 │  │  └─ application-docker.yaml
 │  ├─ Dockerfile
 │  └─ README.md
+├─ failed-events-processor/          # Обработка DLT (dlt.v1): парсинг DeadLetterMessage → JSON в MinIO
+│  ├─ src/main/java/ru/dkalchenko/failedevents/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  └─ application-docker.yaml
+│  ├─ Dockerfile
+│  └─ README.md
 ├─ infrastructure/                    # Инфраструктура: observability, БД, nginx (LB)
 │  ├─ alloy/config.alloy
 │  ├─ grafana/provisioning/{datasources,dashboards}
@@ -111,11 +132,6 @@ iot-platform-yankee-dkalchenko/
 ```bash
 # Полный запуск: поднимает Kafka, Schema Registry, Nexus → собирает iot-avro-schemas и device-service-api → поднимает все контейнеры
 make all
-```
-
-```bash
-# Только сервисы модуля 4 (device-service, device-collector, events-collector, simple-event-sender + нужная инфраструктура)
-make module-four
 ```
 
 ```bash
@@ -179,6 +195,7 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Device Collector Service             | 8096             | Приём устройств из Kafka → PostgreSQL      |
 | Events Collector Service             | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
 | Simple Event Sender                  | 8092             | REST API генерации тестовых событий        |
+| Failed Events Processor             | 8098, 9078       | Обработка DLT → JSON в MinIO (API, actuator) |
 
 ## Наблюдаемость
 
