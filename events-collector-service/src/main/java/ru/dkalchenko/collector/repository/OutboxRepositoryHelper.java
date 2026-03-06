@@ -17,7 +17,7 @@ import java.util.List;
 public final class OutboxRepositoryHelper {
 
     static final String FIND_PENDING_SQL = """
-            SELECT device_id, device_type, created_at, meta, attempts, last_error, trace_id, span_id
+            SELECT operation, device_id, device_type, created_at, meta, attempts, last_error, trace_id, span_id
             FROM collector.device_outbox
             WHERE cityHash64(device_id) % ? = ?
             ORDER BY created_at
@@ -39,6 +39,7 @@ public final class OutboxRepositoryHelper {
 
     static final RowMapper<DeviceOutbox> ROW_MAPPER = (rs, _) ->
             new DeviceOutbox(
+                    rs.getString("operation"),
                     rs.getString("device_id"),
                     rs.getString("device_type"),
                     rs.getLong("created_at"),
@@ -53,6 +54,11 @@ public final class OutboxRepositoryHelper {
             SELECT count()
             FROM collector.device_outbox
             """;
+
+    /** Возвращает operation или "CREATE", если null. */
+    public static String getOperationOrCreate(DeviceOutbox outbox) {
+        return outbox.operation() != null && !outbox.operation().isEmpty() ? outbox.operation() : "CREATE";
+    }
 
     /** Возвращает lastError или пустую строку, если null. */
     public static String getLastErrorOrEmpty(DeviceOutbox outbox) {

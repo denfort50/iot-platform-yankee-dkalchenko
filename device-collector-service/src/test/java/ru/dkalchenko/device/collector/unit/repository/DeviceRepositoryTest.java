@@ -89,4 +89,37 @@ class DeviceRepositoryTest {
                 isA(Timestamp.class)
         );
     }
+
+    @Test
+    void whenUpdateThenExecutesUpdateWithCorrectParams() {
+        Instant updatedAt = Instant.now();
+        when(jdbcTemplate.update(
+                isA(String.class),
+                eq(DEVICE_TYPE),
+                eq(META),
+                isA(Timestamp.class),
+                eq(DEVICE_ID)
+        )).thenReturn(1);
+
+        int result = deviceRepository.updateDevice(DEVICE_ID, DEVICE_TYPE, META, updatedAt);
+
+        assertThat(result).isEqualTo(1);
+        verify(jdbcTemplate).update(
+                isA(String.class),
+                eq(DEVICE_TYPE),
+                eq(META),
+                isA(Timestamp.class),
+                eq(DEVICE_ID)
+        );
+    }
+
+    @Test
+    void whenDeleteByDeviceIdThenExecutesDelete() {
+        when(jdbcTemplate.update(isA(String.class), eq(DEVICE_ID))).thenReturn(1);
+
+        int result = deviceRepository.deleteByDeviceId(DEVICE_ID);
+
+        assertThat(result).isEqualTo(1);
+        verify(jdbcTemplate).update(isA(String.class), eq(DEVICE_ID));
+    }
 }

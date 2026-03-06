@@ -43,6 +43,8 @@ public class DeviceInfoAvroSchema {
         Long createdAt = outbox.createdAt();
         String meta = outbox.meta();
 
+        String operation = outbox.operation();
+        record.put("operation", operation != null && !operation.isEmpty() ? operation : "CREATE");
         record.put("deviceId", deviceId != null ? deviceId : "");
         record.put("deviceType", deviceType != null ? deviceType : "");
         record.put("createdAt", createdAt != null ? createdAt : System.currentTimeMillis());

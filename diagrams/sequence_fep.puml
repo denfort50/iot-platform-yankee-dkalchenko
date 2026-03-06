@@ -1,0 +1,18 @@
+@startuml
+queue "devices.v1.dlt" as IT order 1
+participant "DLQ Listener" as DLQL order 2
+participant "DLQ Service" as DLQS order 3
+participant "DLQ Repository" as DLQR order 4
+database "Min IO" as MIO order 5
+
+== DLQ Persistence Flow ==
+IT ->> DLQL: Поступление DLQ-сообщения
+DLQL -> DLQS: Передача сообщения на обработку
+DLQS -> DLQR: Передача сообщения на сохранение
+DLQR -> MIO: Сохранение записи в объектное хранилище
+MIO --> DLQR: Okay
+DLQR --> DLQS: Сообщение сохранено
+DLQS --> DLQL: Сообщение обработано
+DLQL --> IT: Коммит офсета
+
+@enduml

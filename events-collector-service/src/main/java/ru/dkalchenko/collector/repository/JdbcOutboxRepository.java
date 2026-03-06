@@ -27,6 +27,7 @@ public class JdbcOutboxRepository implements OutboxRepository {
     @Override
     public void save(DeviceOutbox outbox) {
         jdbcTemplate.update(OutboxRepository.INSERT_SQL,
+                OutboxRepositoryHelper.getOperationOrCreate(outbox),
                 outbox.deviceId(),
                 OutboxRepositoryHelper.getDeviceTypeOrEmpty(outbox),
                 OutboxRepositoryHelper.getCreatedAtOrNow(outbox),

@@ -53,8 +53,8 @@ class FullIntegrationTest extends AbstractIntegrationTest {
 		String traceId32 = UUID.randomUUID().toString().replace("-", "");
 		String spanId16 = "0000000000000000";
 
-		// 1. Публикация Avro в devices.v1 с заголовком traceparent (W3C)
-		GenericRecord record = deviceRecord(getDeviceInfoSchema(), deviceId, deviceType, createdAt, meta);
+		// 1. Публикация Avro в devices.v1 с operation=CREATE
+		GenericRecord record = deviceRecord(getDeviceInfoSchema(), "CREATE", deviceId, deviceType, createdAt, meta);
 		ProducerRecord<String, GenericRecord> producerRecord = new ProducerRecord<>(DEVICES_TOPIC, deviceId, record);
 		producerRecord.headers().add(TRACEPARENT_HEADER, traceparent(traceId32, spanId16).getBytes(StandardCharsets.UTF_8));
 		SendResult<String, GenericRecord> sendResult = kafkaTemplate.send(producerRecord)
@@ -96,7 +96,7 @@ class FullIntegrationTest extends AbstractIntegrationTest {
 		String updatedMeta = "{\"location\":\"hall\"}";
 		long updatedCreatedAt = createdAt + 1000;
 		String updateTraceId32 = UUID.randomUUID().toString().replace("-", "");
-		GenericRecord updateRecord = deviceRecord(getDeviceInfoSchema(), deviceId, updatedType, updatedCreatedAt, updatedMeta);
+		GenericRecord updateRecord = deviceRecord(getDeviceInfoSchema(), "CREATE", deviceId, updatedType, updatedCreatedAt, updatedMeta);
 		ProducerRecord<String, GenericRecord> updateProducerRecord = new ProducerRecord<>(DEVICES_TOPIC, deviceId, updateRecord);
 		updateProducerRecord.headers().add(TRACEPARENT_HEADER, traceparent(updateTraceId32, spanId16).getBytes(StandardCharsets.UTF_8));
 		kafkaTemplate.send(updateProducerRecord).get(10, TimeUnit.SECONDS);
@@ -122,10 +122,26 @@ class FullIntegrationTest extends AbstractIntegrationTest {
 				"SELECT COUNT(*) FROM collector.devices WHERE device_id = ?",
 				Integer.class, deviceId);
 		assertThat(countInExpectedShard).isEqualTo(1);
+
+		// 7. Отправка operation=DELETE — запись удаляется
+		GenericRecord deleteRecord = deviceRecord(getDeviceInfoSchema(), "DELETE", deviceId, null, null, null);
+		ProducerRecord<String, GenericRecord> deleteProducerRecord = new ProducerRecord<>(DEVICES_TOPIC, deviceId, deleteRecord);
+		deleteProducerRecord.headers().add(TRACEPARENT_HEADER, traceparent(UUID.randomUUID().toString().replace("-", ""), spanId16).getBytes(StandardCharsets.UTF_8));
+		kafkaTemplate.send(deleteProducerRecord).get(10, TimeUnit.SECONDS);
+
+		await().atMost(AWAIT_TIMEOUT.getSeconds(), TimeUnit.SECONDS)
+				.pollInterval(500, TimeUnit.MILLISECONDS)
+				.untilAsserted(() -> {
+					Integer afterDelete = jdbcTemplate.queryForObject(
+							"SELECT COUNT(*) FROM devices WHERE device_id = ?",
+							Integer.class, deviceId);
+					assertThat(afterDelete).isZero();
+				});
 	}
 
-	private GenericRecord deviceRecord(Schema schema, String deviceId, String deviceType, long createdAt, String meta) {
+	private GenericRecord deviceRecord(Schema schema, String operation, String deviceId, String deviceType, Long createdAt, String meta) {
 		GenericRecord record = new GenericData.Record(schema);
+		record.put("operation", operation != null ? operation : "CREATE");
 		record.put("deviceId", deviceId);
 		record.put("deviceType", deviceType);
 		record.put("createdAt", createdAt);

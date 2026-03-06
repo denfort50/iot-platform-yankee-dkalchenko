@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 import org.springframework.kafka.support.Acknowledgment;
 import ru.dkalchenko.device.collector.listener.DeviceListener;
+import ru.dkalchenko.device.collector.mapper.DeviceMapper;
 import ru.dkalchenko.device.collector.metrics.CollectorMetrics;
 import ru.dkalchenko.device.collector.service.DeviceService;
 import ru.dkalchenko.device.collector.tracing.KafkaTraceContextRunner;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit-тесты слушателя Kafka: обработка сообщения из MockConsumer,
@@ -47,6 +49,8 @@ class DeviceListenerTest {
     @Mock
     DeviceService deviceService;
     @Mock
+    DeviceMapper deviceMapper;
+    @Mock
     CollectorMetrics metrics;
     @Mock
     KafkaTraceContextRunner kafkaTraceContextRunner;
@@ -58,13 +62,15 @@ class DeviceListenerTest {
 
     @BeforeEach
     void setUp() {
+        when(deviceMapper.getOperation(any())).thenReturn("CREATE");
         doAnswer((Answer<Void>) inv -> {
-            inv.getArgument(3, Runnable.class).run();
+            inv.getArgument(4, Runnable.class).run();
             return null;
-        }).when(kafkaTraceContextRunner).runInSpan(any(), any(), any(), any(Runnable.class));
+        }).when(kafkaTraceContextRunner).runInSpan(any(), any(), any(), any(), any(Runnable.class));
         deviceSchema = new Schema.Parser().parse("""
             {"type":"record","name":"DeviceDto","namespace":"com.nashkod.avro",
              "fields":[
+               {"name":"operation","type":"string"},
                {"name":"deviceId","type":"string"},
                {"name":"deviceType","type":"string"},
                {"name":"createdAt","type":"long"},
@@ -78,6 +84,7 @@ class DeviceListenerTest {
 
     private GenericRecord createAvroRecord(String deviceId, String deviceType, long createdAt, String meta) {
         GenericRecord record = new GenericData.Record(deviceSchema);
+        record.put("operation", "CREATE");
         record.put("deviceId", deviceId);
         record.put("deviceType", deviceType);
         record.put("createdAt", createdAt);
@@ -98,7 +105,7 @@ class DeviceListenerTest {
         deviceListener.handleDeviceMessage(polled, acknowledgment);
 
         ArgumentCaptor<GenericRecord> recordCaptor = ArgumentCaptor.forClass(GenericRecord.class);
-        verify(deviceService).upsertDevice(recordCaptor.capture());
+        verify(deviceService).processDevice(recordCaptor.capture());
         GenericRecord passed = recordCaptor.getValue();
         assertThat(passed.get("deviceId").toString()).isEqualTo(KEY);
         assertThat(passed.get("deviceType").toString()).isEqualTo("sensor");
@@ -116,7 +123,7 @@ class DeviceListenerTest {
         ConsumerRecord<String, GenericRecord> polled = records.getFirst();
 
         org.mockito.Mockito.doThrow(new IllegalArgumentException("Invalid device data"))
-                .when(deviceService).upsertDevice(any());
+                .when(deviceService).processDevice(any());
 
         assertThatThrownBy(() -> deviceListener.handleDeviceMessage(polled, acknowledgment))
                 .isInstanceOf(IllegalArgumentException.class)

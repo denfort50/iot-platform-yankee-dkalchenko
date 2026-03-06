@@ -1,0 +1,25 @@
+server:
+  port: 8098
+
+spring:
+  kafka:
+    bootstrap-servers: localhost:19092,localhost:19093,localhost:19094
+    properties:
+      schema.registry.url: http://localhost:8081
+
+failed-events-processor:
+  minio:
+    endpoint: http://localhost:9002
+    access-key: minioadmin
+    secret-key: minioadmin
+
+management:
+  server:
+    port: 9078
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

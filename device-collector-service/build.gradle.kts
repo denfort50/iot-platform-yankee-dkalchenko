@@ -2,7 +2,9 @@ val versions = mapOf(
 	"confluentVersion" to "8.1.1",
 	"apacheAvroVersion" to "1.12.1",
 	"shardingSphereVersion" to "5.5.2",
-	"postgresqlVersion" to "42.7.4"
+	"postgresqlVersion" to "42.7.4",
+	"iotAvroSchemasVersion" to "1.0.1",
+	"awaitilityVersion" to "4.3.0"
 )
 
 plugins {
@@ -40,7 +42,7 @@ repositories {
 
 dependencies {
 	// AVRO SCHEMAS (JAR из Nexus)
-	implementation("ru.dkalchenko:iot-avro-schemas:1.0.0")
+	implementation("ru.dkalchenko:iot-avro-schemas:${versions["iotAvroSchemasVersion"]}")
 
 	// SPRING
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -81,7 +83,7 @@ dependencies {
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:kafka")
 	testImplementation("org.testcontainers:postgresql")
-	testImplementation("org.awaitility:awaitility:4.3.0")
+	testImplementation("org.awaitility:awaitility:${versions["awaitilityVersion"]}")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testCompileOnly("org.projectlombok:lombok")
 	testAnnotationProcessor("org.projectlombok:lombok")

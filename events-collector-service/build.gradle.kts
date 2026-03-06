@@ -5,6 +5,7 @@ val versions = mapOf(
 	"mapstructVersion" to "1.6.3",
 	"liquibaseClickhouseVersion" to "0.9.0",
 	"awaitilityVersion" to "4.3.0",
+	"iotAvroSchemasVersion" to "1.0.1",
 	"lombokMapstructBindingVersion" to "0.2.0",
 	"lz4Version" to "1.10.2"
 )
@@ -44,7 +45,7 @@ repositories {
 
 dependencies {
 	// AVRO SCHEMAS (JAR из Nexus)
-	implementation("ru.dkalchenko:iot-avro-schemas:1.0.0")
+	implementation("ru.dkalchenko:iot-avro-schemas:${versions["iotAvroSchemasVersion"]}")
 
 	// SPRING
 	implementation("org.springframework.boot:spring-boot-starter-actuator")

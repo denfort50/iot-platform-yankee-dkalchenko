@@ -48,14 +48,15 @@ public class BatchedOutboxRepository extends AbstractBatchedRepository<DeviceOut
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
                 DeviceOutbox o = batch.get(i);
-                ps.setString(1, o.deviceId());
-                ps.setString(2, OutboxRepositoryHelper.getDeviceTypeOrEmpty(o));
-                ps.setLong(3, OutboxRepositoryHelper.getCreatedAtOrNow(o));
-                ps.setString(4, OutboxRepositoryHelper.getMetaOrEmpty(o));
-                ps.setInt(5, OutboxRepositoryHelper.getAttemptsOrZero(o));
-                ps.setString(6, OutboxRepositoryHelper.getLastErrorOrEmpty(o));
-                ps.setString(7, OutboxRepositoryHelper.getTraceIdOrNull(o));
-                ps.setString(8, OutboxRepositoryHelper.getSpanIdOrNull(o));
+                ps.setString(1, OutboxRepositoryHelper.getOperationOrCreate(o));
+                ps.setString(2, o.deviceId());
+                ps.setString(3, OutboxRepositoryHelper.getDeviceTypeOrEmpty(o));
+                ps.setLong(4, OutboxRepositoryHelper.getCreatedAtOrNow(o));
+                ps.setString(5, OutboxRepositoryHelper.getMetaOrEmpty(o));
+                ps.setInt(6, OutboxRepositoryHelper.getAttemptsOrZero(o));
+                ps.setString(7, OutboxRepositoryHelper.getLastErrorOrEmpty(o));
+                ps.setString(8, OutboxRepositoryHelper.getTraceIdOrNull(o));
+                ps.setString(9, OutboxRepositoryHelper.getSpanIdOrNull(o));
             }
 
             @Override

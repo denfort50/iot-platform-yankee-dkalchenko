@@ -25,7 +25,8 @@ public final class SchemaRegistryBootstrap {
     private static final Map<String, String> SCHEMA_TO_SUBJECT = Map.of(
             "DeviceEvent", "events.v1-value",
             "DeviceInfo", "devices.v1-value",
-            "DeadLetterMessage", "dlt.v1-value"
+            "DeadLetterMessage", "dlt.v1-value",
+            "DeviceAuditEvent", "audit.device-events.v1-value"
     );
 
     public static void main(String[] args) {

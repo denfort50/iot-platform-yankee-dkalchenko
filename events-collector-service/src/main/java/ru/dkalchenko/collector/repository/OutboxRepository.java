@@ -10,8 +10,8 @@ import java.util.List;
 public interface OutboxRepository {
 
     String INSERT_SQL = """
-            INSERT INTO collector.device_outbox (device_id, device_type, created_at, meta, attempts, last_error, trace_id, span_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO collector.device_outbox (operation, device_id, device_type, created_at, meta, attempts, last_error, trace_id, span_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     /**

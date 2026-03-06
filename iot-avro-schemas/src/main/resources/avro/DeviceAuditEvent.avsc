@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "DeviceAuditEvent",
+  "namespace": "com.nashkod.avro",
+  "doc": "Событие аудита операции над устройством (CREATE/GET/UPDATE/DELETE).",
+  "fields": [
+    {"name": "timestamp", "type": "string", "doc": "ISO-8601 момент события"},
+    {"name": "operation", "type": "string", "doc": "CREATE, GET, UPDATE или DELETE"},
+    {"name": "deviceId", "type": "string"},
+    {"name": "outcome", "type": "string", "doc": "SUCCESS, NOT_FOUND или FAILURE"},
+    {"name": "actor", "type": "string", "doc": "Субъект (пользователь/сервис)"},
+    {"name": "traceId", "type": ["null", "string"], "default": null},
+    {"name": "errorMessage", "type": ["null", "string"], "default": null}
+  ]
+}

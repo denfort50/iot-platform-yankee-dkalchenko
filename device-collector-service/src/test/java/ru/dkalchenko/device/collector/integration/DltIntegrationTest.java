@@ -34,6 +34,7 @@ class DltIntegrationTest extends AbstractIntegrationTest {
 	void whenProcessingFailsThenMessageSentToDltWithCorrectContent() throws Exception {
 		// Сообщение с пустым deviceId — маппер выбросит IllegalArgumentException, после retry уйдёт в DLT
 		GenericRecord invalidRecord = new GenericData.Record(getDeviceInfoSchema());
+		invalidRecord.put("operation", "CREATE");
 		invalidRecord.put("deviceId", "");
 		invalidRecord.put("deviceType", "sensor");
 		invalidRecord.put("createdAt", System.currentTimeMillis());

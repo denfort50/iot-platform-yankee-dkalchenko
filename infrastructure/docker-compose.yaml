@@ -187,6 +187,9 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD}
       KC_METRICS_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: host.docker.internal
+      KC_HOSTNAME_PORT: "8080"
+      KC_HOSTNAME_STRICT: "false"
     depends_on:
       keycloak-postgres:
         condition: service_healthy
@@ -195,6 +198,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
+
+  keycloak-init:
+    image: python:3-alpine
+    container_name: keycloak-init
+    entrypoint: [ "python", "/scripts/init-keycloak.py" ]
+    volumes:
+      - ./keycloak/init-keycloak.py:/scripts/init-keycloak.py:ro
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_TEST_USERNAME: ${KEYCLOAK_TEST_USERNAME:-device-api-user}
+      KEYCLOAK_TEST_PASSWORD: ${KEYCLOAK_TEST_PASSWORD:-device-api-password}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    restart: "no"
 
   kafka1:
     image: confluentinc/cp-kafka:8.1.1
@@ -632,10 +654,6 @@ services:
     build:
       context: ..
       dockerfile: events-collector-service/Dockerfile
-      args:
-        NEXUS_URL: ${NEXUS_URL}
-        NEXUS_USER: ${NEXUS_USER}
-        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
     image: events-collector-service:1.0.0
     env_file:
       - .env
@@ -666,10 +684,6 @@ services:
     build:
       context: ..
       dockerfile: device-collector-service/Dockerfile
-      args:
-        NEXUS_URL: ${NEXUS_URL}
-        NEXUS_USER: ${NEXUS_USER}
-        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
     image: device-collector-service:1.0.0
     env_file:
       - .env
@@ -698,14 +712,97 @@ services:
       retries: 5
       start_period: 30s
 
+  failed-events-processor:
+    build:
+      context: ..
+      dockerfile: failed-events-processor/Dockerfile
+    image: failed-events-processor:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8098:8080"
+      - "9078:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  device-service:
+    build:
+      context: ..
+      dockerfile: device-service/Dockerfile
+    image: device-service:1.0.0
+    env_file:
+      - .env
+    ports: # Диапазон портов для 3 реплик: --scale device-service=3
+      - "8097-8099:8080"
+      - "9077-9079:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_ISSUER_URI: http://host.docker.internal:8080/realms/master
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres-shard0:
+        condition: service_healthy
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  device-service-lb:
+    image: nginx:1.27-alpine
+    container_name: device-service-lb
+    ports:
+      - "8090:80"    # API device-service (балансировка по репликам)
+      - "9070:8081"  # Actuator device-service
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - device-service
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1:8081/actuator/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   simple-event-sender:
     build:
       context: ..
       dockerfile: simple-event-sender/Dockerfile
-      args:
-        NEXUS_URL: ${NEXUS_URL}
-        NEXUS_USER: ${NEXUS_USER}
-        NEXUS_PASSWORD: ${NEXUS_PASSWORD}
     image: simple-event-sender:1.0.0
     env_file:
       - .env

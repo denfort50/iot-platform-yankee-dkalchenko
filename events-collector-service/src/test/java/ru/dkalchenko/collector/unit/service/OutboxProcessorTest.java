@@ -69,8 +69,8 @@ class OutboxProcessorTest {
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
         long nowMs = System.currentTimeMillis();
-        DeviceOutbox row1 = new DeviceOutbox("device-1", "type-1", nowMs, "{}", 0, null, null, null);
-        DeviceOutbox row2 = new DeviceOutbox("device-2", "type-2", nowMs, "{}", 0, null, null, null);
+        DeviceOutbox row1 = new DeviceOutbox("CREATE", "device-1", "type-1", nowMs, "{}", 0, null, null, null);
+        DeviceOutbox row2 = new DeviceOutbox("CREATE", "device-2", "type-2", nowMs, "{}", 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row1, row2))
                 .thenReturn(List.of());
@@ -97,7 +97,7 @@ class OutboxProcessorTest {
         when(instanceRegistry.getTotalInstances()).thenReturn(total);
         when(instanceRegistry.getMyIndex()).thenReturn(myIndex);
 
-        DeviceOutbox row = new DeviceOutbox("device-fail", "type", System.currentTimeMillis(), "{}", 0, null, null, null);
+        DeviceOutbox row = new DeviceOutbox("CREATE", "device-fail", "type", System.currentTimeMillis(), "{}", 0, null, null, null);
         when(outboxRepository.findPendingForShard(total, myIndex, BATCH_SIZE))
                 .thenReturn(List.of(row))
                 .thenReturn(List.of());

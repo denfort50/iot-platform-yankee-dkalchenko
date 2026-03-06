@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.dkalchenko.device.collector.mapper.DeviceMapper;
 import ru.dkalchenko.device.collector.model.Device;
+import ru.dkalchenko.device.collector.model.DeviceUpdate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,6 +34,7 @@ class DeviceMapperTest {
         deviceSchema = new Schema.Parser().parse("""
             {"type":"record","name":"DeviceDto","namespace":"com.nashkod.avro",
              "fields":[
+               {"name":"operation","type":"string"},
                {"name":"deviceId","type":"string"},
                {"name":"deviceType","type":"string"},
                {"name":"createdAt","type":"long"},
@@ -43,6 +45,7 @@ class DeviceMapperTest {
 
     private GenericRecord newRecord(String deviceId, String deviceType, Long createdAt, String meta) {
         GenericRecord record = new GenericData.Record(deviceSchema);
+        record.put("operation", "CREATE");
         record.put("deviceId", deviceId);
         record.put("deviceType", deviceType);
         record.put("createdAt", createdAt != null ? createdAt : 0L);
@@ -66,6 +69,7 @@ class DeviceMapperTest {
     @Test
     void whenCreatedAtAsIntegerThenMapsAsLong() {
         GenericRecord record = new GenericData.Record(deviceSchema);
+        record.put("operation", "CREATE");
         record.put("deviceId", DEVICE_ID);
         record.put("deviceType", DEVICE_TYPE);
         record.put("createdAt", 12345);
@@ -113,6 +117,7 @@ class DeviceMapperTest {
     @Test
     void whenNullCreatedAtThenThrows() {
         GenericRecord record = new GenericData.Record(deviceSchema);
+        record.put("operation", "CREATE");
         record.put("deviceId", DEVICE_ID);
         record.put("deviceType", DEVICE_TYPE);
         record.put("createdAt", null);
@@ -130,5 +135,64 @@ class DeviceMapperTest {
         Device device = deviceMapper.toDevice(record);
 
         assertThat(device.meta()).isNull();
+    }
+
+    @Test
+    void getOperationReturnsCreateWhenSet() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        assertThat(deviceMapper.getOperation(record)).isEqualTo("CREATE");
+    }
+
+    @Test
+    void getOperationReturnsUpdateWhenSet() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        record.put("operation", "UPDATE");
+        assertThat(deviceMapper.getOperation(record)).isEqualTo("UPDATE");
+    }
+
+    @Test
+    void getOperationReturnsDeleteWhenSet() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        record.put("operation", "DELETE");
+        assertThat(deviceMapper.getOperation(record)).isEqualTo("DELETE");
+    }
+
+    @Test
+    void getOperationReturnsCreateWhenNullOrBlank() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        record.put("operation", null);
+        assertThat(deviceMapper.getOperation(record)).isEqualTo("CREATE");
+        record.put("operation", "  ");
+        assertThat(deviceMapper.getOperation(record)).isEqualTo("CREATE");
+    }
+
+    @Test
+    void getDeviceIdReturnsDeviceId() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        assertThat(deviceMapper.getDeviceId(record)).isEqualTo(DEVICE_ID);
+    }
+
+    @Test
+    void toDeviceForUpdateMapsFields() {
+        GenericRecord record = newRecord(DEVICE_ID, DEVICE_TYPE, CREATED_AT, META);
+        record.put("operation", "UPDATE");
+        DeviceUpdate update = deviceMapper.toDeviceForUpdate(record);
+        assertThat(update.deviceId()).isEqualTo(DEVICE_ID);
+        assertThat(update.deviceType()).isEqualTo(DEVICE_TYPE);
+        assertThat(update.meta()).isEqualTo(META);
+    }
+
+    @Test
+    void toDeviceForUpdateUsesEmptyStringForNullOptionalFields() {
+        GenericRecord record = new GenericData.Record(deviceSchema);
+        record.put("operation", "UPDATE");
+        record.put("deviceId", DEVICE_ID);
+        record.put("deviceType", null);
+        record.put("createdAt", null);
+        record.put("meta", null);
+        DeviceUpdate update = deviceMapper.toDeviceForUpdate(record);
+        assertThat(update.deviceId()).isEqualTo(DEVICE_ID);
+        assertThat(update.deviceType()).isEmpty();
+        assertThat(update.meta()).isEmpty();
     }
 }

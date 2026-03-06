@@ -67,6 +67,7 @@ class EventServiceTest {
         stubTracerForSaveSpan();
         LocalDateTime now = LocalDateTime.now();
         DeviceOutbox baseOutbox = new DeviceOutbox(
+                "CREATE",
                 DEVICE_ID,
                 "temperature",
                 now.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
@@ -102,6 +103,7 @@ class EventServiceTest {
         stubTracerForSaveSpan();
         LocalDateTime now = LocalDateTime.now();
         DeviceOutbox baseOutbox = new DeviceOutbox(
+                "CREATE",
                 DEVICE_ID,
                 "temperature",
                 now.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),

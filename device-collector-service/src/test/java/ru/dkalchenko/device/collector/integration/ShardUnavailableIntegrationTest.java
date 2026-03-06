@@ -44,6 +44,7 @@ class ShardUnavailableIntegrationTest extends AbstractIntegrationTest {
 		int targetShard = 1;
 		String deviceId = deviceIdForShard(targetShard);
 		GenericRecord record = new GenericData.Record(getDeviceInfoSchema());
+		record.put("operation", "CREATE");
 		record.put("deviceId", deviceId);
 		record.put("deviceType", "sensor");
 		record.put("createdAt", System.currentTimeMillis());

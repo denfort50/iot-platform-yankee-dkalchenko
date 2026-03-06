@@ -4,20 +4,34 @@
   "namespace": "com.nashkod.avro",
   "fields": [
     {
+      "name": "operation",
+      "type": "string",
+      "doc": "CREATE, UPDATE, or DELETE"
+    },
+    {
       "name": "deviceId",
       "type": "string"
     },
     {
       "name": "deviceType",
-      "type": "string"
+      "type": [
+        "null",
+        "string"
+      ]
     },
     {
       "name": "createdAt",
-      "type": "long"
+      "type": [
+        "null",
+        "long"
+      ]
     },
     {
       "name": "meta",
-      "type": "string"
+      "type": [
+        "null",
+        "string"
+      ]
     }
   ]
 }
