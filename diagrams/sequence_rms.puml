@@ -1,0 +1,28 @@
+@startuml
+actor "Engineer" as E order 1
+actor "Router" as R order 2
+participant "Command Handler" as CH order 3
+participant "Command Service" as CS order 4
+participant "Command Repository" as CR order 5
+database "postgres" as DB order 6
+
+== Engineer Flow ==
+E -> CH: Создание/обновление/удаление команды для роутера
+CH -> CS: Передача команды на обработку
+CS -> CR: Обработка и передача команды на создание/обновление/удаление в БД
+CR -> DB: Выполнение SQL-запроса в БД
+DB ->> CR: Okay
+CR ->> CS: Okay
+CS ->> CH: Okay
+CH ->> E: Команда сохранена/обновлена/удалена
+== Router Flow ==
+R -> CH: Получить имеющиеся команды
+CH -> CS: Передача запроса на обработку
+CS -> CR: Обработка и передача запроса в слой персистенции
+CR -> DB: Выполнение SQL-запроса в БД
+DB ->> CR: Выдача результата выполнения SQL-запроса
+CR ->> CS: Передача результата в сервисный слой
+CS ->> CH: Передача результата в транспортный слой
+CH ->> R: Передача результата вызывающей системе
+
+@enduml
