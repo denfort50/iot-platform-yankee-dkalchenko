@@ -1,0 +1,68 @@
+// Определение gRPC API сервиса управления роутерами:
+// регистрация роутеров, отправка команд, опрос и подтверждение (namespace api.v1).
+syntax = "proto3";
+
+package api.v1;
+
+option go_package = "router-management-service/api/proto/api/v1;apiv1";
+
+// RouterManagementService — gRPC API для управления роутерами (namespace /api/v1).
+service RouterManagementService {
+  // RegisterRouter — зарегистрировать новый роутер (сервис генерирует id, возвращает в ответе).
+  rpc RegisterRouter(RegisterRouterRequest) returns (RegisterRouterResponse);
+  // SendCommand — отправить команду: при указанном router_id — одному роутеру; при пустом router_id — всем зарегистрированным роутерам.
+  rpc SendCommand(SendCommandRequest) returns (SendCommandResponse);
+  // CommandsPoll — роутер запрашивает свои команды (PENDING/SENT).
+  rpc CommandsPoll(CommandsPollRequest) returns (CommandsPollResponse);
+  // CommandsAck — роутер подтверждает выполнение команды.
+  rpc CommandsAck(CommandsAckRequest) returns (CommandsAckResponse);
+}
+
+message RegisterRouterRequest {
+  string inventory_number = 1;  // инвентарный номер (обязательно, уникальный)
+  string name = 2;              // имя роутера (обязательно)
+  string model = 3;             // модель, опционально
+  string location = 4;          // расположение/локация, опционально
+}
+
+message RegisterRouterResponse {
+  string router_id = 1;          // сгенерированный UUID роутера
+  optional string error = 2;    // только при ошибке
+}
+
+message SendCommandRequest {
+  string router_id = 1;         // UUID роутера; если пусто — команда создаётся для всех зарегистрированных роутеров
+  string command_type = 2;      // REBOOT, PING и т.д.
+  string payload = 3;           // JSON, опционально
+}
+
+message SendCommandResponse {
+  repeated string command_ids = 1;  // список созданных command_id (один при отправке одному роутеру, несколько — при отправке всем)
+  optional string error = 2;         // только при ошибке
+}
+
+message CommandsPollRequest {
+  string router_id = 1;         // UUID роутера
+}
+
+message CommandMessage {
+  string command_id = 1;
+  string command_type = 2;
+  string payload = 3;
+  string status = 4;             // PENDING, SENT
+}
+
+message CommandsPollResponse {
+  repeated CommandMessage commands = 1;
+  optional string error = 2;    // только при ошибке
+}
+
+message CommandsAckRequest {
+  string router_id = 1;
+  string command_id = 2;
+}
+
+message CommandsAckResponse {
+  bool success = 1;
+  optional string error = 2;    // только при ошибке
+}

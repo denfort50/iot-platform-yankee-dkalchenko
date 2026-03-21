@@ -827,6 +827,85 @@ services:
       retries: 5
       start_period: 20s
 
+  router-management-postgres:
+    image: postgres:17-alpine
+    container_name: router-management-postgres
+    environment:
+      POSTGRES_USER: ${ROUTER_MANAGEMENT_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ROUTER_MANAGEMENT_POSTGRES_PASSWORD}
+      POSTGRES_DB: router_management
+    volumes:
+      - router-management-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${ROUTER_MANAGEMENT_POSTGRES_USER} -d ${ROUTER_MANAGEMENT_POSTGRES_DB} -p 5432" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  router-management-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    container_name: router-management-postgres-exporter
+    depends_on:
+      router-management-postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: postgresql://${ROUTER_MANAGEMENT_POSTGRES_USER}:${ROUTER_MANAGEMENT_POSTGRES_PASSWORD}@router-management-postgres:5432/router_management?sslmode=disable
+    ports:
+      - "9193:9187"
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9187/metrics" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  router-management-service:
+    build:
+      context: ../router-management-service
+      dockerfile: Dockerfile
+    image: router-management-service:1.0.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    ports:
+      - "50051:50051"
+      - "8091:8080"
+    environment:
+      GRPC_PORT: "50051"
+      HTTP_PORT: "8080"
+      POSTGRES_HOST: router-management-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${ROUTER_MANAGEMENT_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ROUTER_MANAGEMENT_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${ROUTER_MANAGEMENT_POSTGRES_DB}
+      SCHEDULER_ENABLED: true
+      SCHEDULER_CRON: "*/1 * * * *"
+      SENT_TIMEOUT_MINUTES: 10
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+      OTEL_SERVICE_NAME: router-management-service
+    depends_on:
+      router-management-postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      alloy:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 networks:
   iot-platform-net:
     driver: bridge
@@ -852,3 +931,4 @@ volumes:
   loki_index:
   loki_rules:
   nexus-data:
+  router-management-postgres-data:

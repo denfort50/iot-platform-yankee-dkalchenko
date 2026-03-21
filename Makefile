@@ -1,11 +1,11 @@
 DOCKER_COMPOSE = docker-compose -f infrastructure/docker-compose.yaml
 NEXUS_URL = http://localhost:8082
 INFRA_SERVICES ?= keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter camunda camunda-postgres camunda-postgres-exporter clickhouse redis redis-insight redis-exporter kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter postgres-shard0 postgres-shard1 postgres-shard2 iot-platform-postgres-exporter-shard0 iot-platform-postgres-exporter-shard1 iot-platform-postgres-exporter-shard2 nexus minio prometheus grafana tempo loki alloy
-MODULE_FIVE ?= failed-events-processor device-service device-collector-service events-collector-service simple-event-sender clickhouse redis redis-insight redis-exporter kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter prometheus grafana tempo loki alloy postgres-shard0 postgres-shard1 postgres-shard2 iot-platform-postgres-exporter-shard0 iot-platform-postgres-exporter-shard1 iot-platform-postgres-exporter-shard2 nexus keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter device-service-lb minio
+MODULE_SIX ?= router-management-service router-management-postgres router-management-postgres-exporter prometheus grafana tempo loki alloy keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter
 
 .PHONY: all stop clean logs infra infra-logs infra-stop rebuild device-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
 
-all: up build-artifacts start
+all: up build-artifacts start device-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
 
 ifeq ($(OS),Windows_NT)
 GRADLE = .\gradlew.bat
@@ -43,8 +43,8 @@ build-artifacts:
 start:
 	$(DOCKER_COMPOSE) up -d
 
-module-five: up build-artifacts device-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
-	$(DOCKER_COMPOSE) up -d $(MODULE_FIVE)
+module-six: up build-artifacts
+	$(DOCKER_COMPOSE) up -d $(MODULE_SIX)
 
 stop:
 	$(DOCKER_COMPOSE) stop

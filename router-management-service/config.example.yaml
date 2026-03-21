@@ -1,0 +1,27 @@
+# Пример конфигурации сервиса управления роутерами. Скопировать в config.yaml и задать CONFIG_PATH=config.yaml (или использовать переменные окружения).
+server:
+  grpc_port: 50051   # порт gRPC API
+  http_port: 8080    # порт HTTP (health/ready)
+
+postgres:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  dbname: router_management
+  sslmode: disable
+
+scheduler:
+  enabled: true              # включить планировщик проверки зависших команд
+  cron: "*/1 * * * *"        # как часто запускать проверку (cron-выражение, без секунд)
+  sent_timeout_minutes: 10   # через сколько минут после sent_at считать команду зависшей и помечать FAILED
+
+auth:
+  enabled: true
+  # Локально: localhost. В Docker (compose) — обычно http://host.docker.internal:8080/realms/master (как в iss JWT).
+  issuer_url: "http://localhost:8080/realms/master"
+
+# Трассировка (OpenTelemetry OTLP/HTTP). Удобнее задать ENV: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_SERVICE_NAME.
+# telemetry:
+#   otlp_traces_endpoint: "http://localhost:4318/v1/traces"
+#   service_name: "router-management-service"

@@ -47,6 +47,7 @@ loki.source.docker "containers" {
   forward_to    = [loki.write.local.receiver]
 }
 
+// OTLP от приложений (device-service, router-management-service и др.) → Tempo через exporter ниже.
 otelcol.receiver.otlp "default" {
   grpc {
     endpoint = "0.0.0.0:4317"
@@ -203,6 +204,47 @@ discovery.relabel "device_service" {
   }
 }
 
+// Discovery для router-management-service: Prometheus /metrics на HTTP-порту контейнера (8080).
+discovery.relabel "router_management_service" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = ".*router-management-service.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = ".*iot-platform-net.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_ip"]
+    regex         = "(.+)"
+    target_label  = "__address__"
+    replacement   = "${1}:8080"
+  }
+
+  rule {
+    target_label = "__metrics_path__"
+    replacement  = "/metrics"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "router-management-service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "instance"
+    replacement   = "${1}:8080"
+  }
+}
+
 // Discovery для failed-events-processor: скрапим по IP в сети, путь /actuator/prometheus, порт 9090.
 discovery.relabel "failed_events_processor" {
   targets = discovery.docker.containers.targets
@@ -282,6 +324,12 @@ prometheus.scrape "device_collector" {
 prometheus.scrape "device_service" {
   scrape_interval = "10s"
   targets         = discovery.relabel.device_service.output
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+prometheus.scrape "router_management_service" {
+  scrape_interval = "10s"
+  targets         = discovery.relabel.router_management_service.output
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
 

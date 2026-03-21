@@ -1,0 +1,9 @@
+version: v2
+name: buf.build/router-management/api
+deps: []
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - STANDARD

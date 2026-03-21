@@ -1,10 +1,10 @@
 # IoT Microservice Platform – система обработки событий электронных IoT-устройств
 
-Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий), **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
+Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий), **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO), **router-management-service** (Go: gRPC API регистрации роутеров, отправки команд, опроса и подтверждения; отдельная БД PostgreSQL; JWT через Keycloak; health/metrics и опционально OTLP). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
 
 ## Технологический стек
 
-- **Языки**: Java 24, Go 1.20+
+- **Языки**: Java 24, Go 1.25+ (**router-management-service**)
 - **Backend‑фреймворки**: Spring Boot 3.5 (Web MVC, WebFlux, Security — JWT, OAuth2 Resource Server)
 - **Интеграция и клиентские библиотеки**: OpenFeign
 - **Маппинг и удобство разработки**: MapStruct, Lombok, Springdoc OpenAPI
@@ -12,13 +12,15 @@
 - **Сообщения и очереди**: Kafka, Confluent Schema Registry
 - **Оркестрация и инфраструктура**: Docker Compose
 - **Безопасность и оркестрация процессов**: Keycloak, Camunda
-- **Наблюдаемость**: Spring Boot Actuator, Micrometer Prometheus, OpenTelemetry (OTLP), Grafana, Alloy, Prometheus, Tempo, Loki
+- **API (дополнительно)**: gRPC (**router-management-service**, protobuf `api.v1`)
+- **Наблюдаемость**: Spring Boot Actuator, Micrometer Prometheus, OpenTelemetry (OTLP), Grafana, Alloy, Prometheus, Tempo, Loki; Prometheus `/metrics` у **router-management-service**
 - **Тестирование и окружения**: Testcontainers
 ---
 
 ## Содержание
 - [Архитектура](#архитектура)
 - [Состав репозитория](#состав-репозитория)
+- [Router Management Service](#router-management-service)
 - [Быстрый старт](#быстрый-старт)
 - [Порты и сервисы](#порты-и-сервисы)
 - [Наблюдаемость](#наблюдаемость)
@@ -29,18 +31,18 @@
 
 Диаграммы описывают платформу на уровнях C4: контекст системы, контейнеры (микросервисы), компоненты внутри сервисов и диаграммы последовательностей. Файлы находятся в каталоге `diagrams/`:
 
-| Уровень | Файл | Описание |
-|---------|------|----------|
-| **Context** | [context.puml](diagrams/context.puml) | Система в контексте: инженер, IoT-устройства, Kafka, Keycloak, Grafana, Camunda |
-| **Container** | [containers.puml](diagrams/containers.puml) | Контейнеры: ECS, DCS, Device Service, Failed Events Processor, MinIO, Kafka, observability |
-| **Components** | [components_ecs.puml](diagrams/components_ecs.puml) | Events Collector: Event Listener, Deduplication, Outbox Processor, ClickHouse |
-|               | [components_dcs.puml](diagrams/components_dcs.puml) | Device Collector: Device Listener, DLT Producer, ShardingSphere → PostgreSQL |
-|               | [components_ds.puml](diagrams/components_ds.puml) | Device Service: Device Controller, Redis Client, Device Changes Publisher |
-|               | [components_fep.puml](diagrams/components_fep.puml) | Failed Events Processor: DLQ Listener, DLQ Service, DLQ Repository → MinIO |
-| **Sequence**  | [sequence_ecs.puml](diagrams/sequence_ecs.puml) | Поток событий ECS: Kafka → дедупликация → ClickHouse → Outbox → Kafka |
-|               | [sequence_dcs.puml](diagrams/sequence_dcs.puml) | Поток DCS: Kafka → устройство → PostgreSQL (или DLT при ошибке) |
-|               | [sequence_ds.puml](diagrams/sequence_ds.puml) | Поток Device Service: CRUD → Redis/PostgreSQL → Kafka |
-|               | [sequence_fep.puml](diagrams/sequence_fep.puml) | Поток FEP: DLQ → парсинг → сохранение в MinIO |
+| Уровень        | Файл                                                | Описание                                                                                   |
+|----------------|-----------------------------------------------------|--------------------------------------------------------------------------------------------|
+| **Context**    | [context.puml](diagrams/context.puml)               | Система в контексте: инженер, IoT-устройства, Kafka, Keycloak, Grafana, Camunda            |
+| **Container**  | [containers.puml](diagrams/containers.puml)         | Контейнеры: ECS, DCS, Device Service, Failed Events Processor, MinIO, Kafka, observability |
+| **Components** | [components_ecs.puml](diagrams/components_ecs.puml) | Events Collector: Event Listener, Deduplication, Outbox Processor, ClickHouse              |
+|                | [components_dcs.puml](diagrams/components_dcs.puml) | Device Collector: Device Listener, DLT Producer, ShardingSphere → PostgreSQL               |
+|                | [components_ds.puml](diagrams/components_ds.puml)   | Device Service: Device Controller, Redis Client, Device Changes Publisher                  |
+|                | [components_fep.puml](diagrams/components_fep.puml) | Failed Events Processor: DLQ Listener, DLQ Service, DLQ Repository → MinIO                 |
+| **Sequence**   | [sequence_ecs.puml](diagrams/sequence_ecs.puml)     | Поток событий ECS: Kafka → дедупликация → ClickHouse → Outbox → Kafka                      |
+|                | [sequence_dcs.puml](diagrams/sequence_dcs.puml)     | Поток DCS: Kafka → устройство → PostgreSQL (или DLT при ошибке)                            |
+|                | [sequence_ds.puml](diagrams/sequence_ds.puml)       | Поток Device Service: CRUD → Redis/PostgreSQL → Kafka                                      |
+|                | [sequence_fep.puml](diagrams/sequence_fep.puml)     | Поток FEP: DLQ → парсинг → сохранение в MinIO                                              |
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -109,6 +111,17 @@ iot-platform-yankee-dkalchenko/
 │  │  └─ application-docker.yaml
 │  ├─ Dockerfile
 │  └─ README.md
+├─ router-management-service/        # Go: gRPC управление роутерами (PostgreSQL, Keycloak JWT, scheduler)
+│  ├─ api/proto/api/v1/              # router_management.proto и сгенерированный Go-код
+│  ├─ cmd/server/
+│  ├─ internal/                      # config, repository, service, grpc handler, auth, telemetry, metrics
+│  ├─ integration/                   # интеграционные тесты (Testcontainers)
+│  ├─ Dockerfile
+│  └─ README.md
+├─ load-testing/                     # JMeter: нагрузочные сценарии для router-management-service
+│  ├─ router-management-load-test.jmx
+│  ├─ run-jmeter.ps1
+│  └─ run-jmeter.sh
 ├─ infrastructure/                    # Инфраструктура: observability, БД, nginx (LB)
 │  ├─ alloy/config.alloy
 │  ├─ grafana/provisioning/{datasources,dashboards}
@@ -119,9 +132,16 @@ iot-platform-yankee-dkalchenko/
 │  └─ ...
 ├─ build.gradle.kts                   # Корневой Gradle‑конфиг (мультипроект)
 ├─ settings.gradle.kts                # Настройка модулей Gradle
-├─ Makefile                           # Сценарии: all, module-four, stop, clean, *-image
+├─ Makefile                           # Сценарии: all, module-five, module-six, stop, clean, *-image
 └─ README.md
 ```
+
+---
+## Router Management Service
+
+Отдельный модуль на **Go** с **gRPC** API (`RouterManagementService`): регистрация роутера, отправка команд одному или всем зарегистрированным роутерам, опрос очереди команд и подтверждение выполнения. Данные — в выделенном **PostgreSQL** (`router-management-postgres` в Compose). Аутентификация — **JWT** по issuer Keycloak (как и у остальной платформы). В том же процессе поднимается HTTP (**Gin**): `/health`, `/ready`, `/metrics` (Prometheus); при настройке OTLP — трейсы в **Alloy/Tempo**.
+
+- Подробная документация, переменные окружения, сборка и тесты: [`router-management-service/README.md`](router-management-service/README.md).
 
 ---
 ## Быстрый старт
@@ -196,6 +216,10 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Events Collector Service             | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
 | Simple Event Sender                  | 8092             | REST API генерации тестовых событий        |
 | Failed Events Processor             | 8098, 9078       | Обработка DLT → JSON в MinIO (API, actuator) |
+| Router Management Service (gRPC)    | 50051            | Контейнер `router-management-service`      |
+| Router Management Service (HTTP)    | 8091             | Health / ready / metrics (проброс с 8080)    |
+| Postgres (router-management)        | 5439             | Контейнер `router-management-postgres`     |
+| Postgres Exporter (router-management) | 9193           | Метрики БД router-management               |
 
 ## Наблюдаемость
 
