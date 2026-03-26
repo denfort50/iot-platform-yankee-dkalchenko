@@ -1,0 +1,22 @@
+@startuml
+actor "User/System" as US
+
+participant "Event Controller" as EC
+participant "Event Ports In" as EPI
+participant "Event Service" as ES
+participant "Event Ports Out" as EPO
+participant "Event Http Adapter" as EHA
+
+== Event Flow ==
+US -> EC: Запрос для Event Service
+EC -> EPI
+EPI -> ES
+ES -> EPO
+EPO -> EHA
+EHA --> EPO
+EPO --> ES
+ES --> EPI
+EPI --> EC
+EC --> US: Ответ от Event Service
+
+@enduml

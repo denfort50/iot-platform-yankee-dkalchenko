@@ -1,0 +1,52 @@
+@startuml
+actor "User/System" as US
+participant "Device Controller" as DC
+participant "Device Ports In" as DPI
+participant "Device Service" as DS
+participant "Device Ports Out" as DPO
+participant "Device Http Adapter" as DHA
+participant "Version Update Saga Service" as VUSS
+participant "Router Management Ports In" as RMPI
+participant "Router Management Service" as RMS
+participant "Router Management Ports Out" as RMPO
+participant "Router Management Http Adapter" as RMHA
+
+== Saga Flow (обновления версии) ==
+US -> DC: Запрос на обновление
+DC -> DPI: Прохождение входящего порта на обновление
+DPI -> DS: Прохождение сервиса для обновления
+DS -> VUSS: Запуск саги на обновление
+VUSS -> DPO: Прохождение исходящего порта на обновление
+DPO -> DHA: Работа адаптера по обновлению
+DHA --> DPO: okay
+DPO --> VUSS: okay
+VUSS -> RMPI: Прохождение входящего порта на обновление
+RMPI -> RMS: Прохождение сервиса на обновление
+RMS -> RMPO: Прохождение исходящего порта на обновление
+RMPO -> RMHA: Работа адаптера по обновлению
+alt Обновление в Router Management Service успешно
+    RMHA --> RMPO: okay
+    RMPO --> RMS: okay
+    RMS --> RMPI: okay
+    RMPI --> VUSS: okay
+    VUSS --> DS: Обновление осуществлено успешно
+    DS --> DPI: okay
+    DPI --> DC: okay
+    DC --> US: Данные в сервисах обновлены
+end
+alt Ошибка при обновлении router-management-service
+    RMHA -> RMPO: fail
+    RMPO -> RMS: fail
+    RMS -> RMPI: fail
+    RMPI -> VUSS: fail
+    VUSS -> DS: Компенсация (откат)
+    DS -> DPO: Прохождение исходящего порта на откат
+    DPO -> DHA: Работа адаптера по откату
+    DHA --> DPO: rollback executed
+    DPO --> DS: rollback executed
+    DS --> DPI: rollback executed
+    DPI --> DC: rollback executed
+    DC --> US: Данные обновить не удалось, выполнена компенсационная транзакция
+end
+
+@enduml

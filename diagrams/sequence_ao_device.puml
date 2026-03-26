@@ -1,0 +1,21 @@
+@startuml
+actor "User/System" as US
+participant "Device Controller" as DC
+participant "Device Ports In" as DPI
+participant "Device Service" as DS
+participant "Device Ports Out" as DPO
+participant "Device Http Adapter" as DHA
+
+== Device Flow ==
+US -> DC: Запрос для Device Service
+DC -> DPI
+DPI -> DS
+DS -> DPO
+DPO -> DHA
+DHA --> DPO
+DPO --> DS
+DS --> DPI
+DPI --> DC
+DC --> US: Ответ от Device Service
+
+@enduml

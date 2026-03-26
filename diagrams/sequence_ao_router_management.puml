@@ -1,0 +1,21 @@
+@startuml
+actor "User/System" as US
+participant "Router Management Controller" as RMC
+participant "Router Management Ports In" as RMPI
+participant "Router Management Service" as RMS
+participant "Router Management Ports Out" as RMPO
+participant "Router Management Http Adapter" as RMHA
+
+== Router Management Flow ==
+US -> RMC: Запрос для Router Management Service
+RMC -> RMPI
+RMPI -> RMS
+RMS -> RMPO
+RMPO -> RMHA
+RMHA --> RMPO
+RMPO --> RMS
+RMS --> RMPI
+RMPI --> RMC
+RMC --> US: Ответ от Router Management Service
+
+@enduml

@@ -1,0 +1,18 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+ContainerDb_Ext(ch, "ClickHouse", "OLAP база данных", "Хранит события")
+
+Container_Boundary(es, "Event Service", "Spring Boot", "Сервис для работы с событиями") {
+    Component(eventController, "Event Controller", "Предоставляет эндпойнты для работы с событиями")
+    Component(eventService, "Event Service", "Выполняет бизнес-логику обработки запросов")
+    Component(eventRepository, "Event Repository", "Обеспечивает CRUD операции событий в БД")
+}
+
+Rel(eventController, eventService, "Передает запросы в сервисный слой")
+Rel(eventService, eventRepository, "Обрабатывает запросы и передаёт в слой персистенции")
+Rel(eventRepository, ch, "Ходит в базу данных для выполнения CRUD-операций")
+
+@enduml

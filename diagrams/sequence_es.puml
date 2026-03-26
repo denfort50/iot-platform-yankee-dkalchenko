@@ -1,0 +1,19 @@
+@startuml
+actor "User" as US order 1
+participant "Event Controller" as EC order 2
+participant "Event Service" as ES order 3
+participant "Event Repository" as ER order 4
+database "Clickhouse" as CH order 5
+
+== Event Service Flow ==
+US -> EC: GET /api/v1/events
+US -> EC: GET /api/v1/events/{event_id}
+EC -> ES: Передача запросов в сервисный слой
+ES -> ER: Обработка и передача запросов в слой персистенции
+ER -> CH: SELECT FROM DATABASE
+CH --> ER: ResultSet
+ER --> ES: Передача ответа в сервисный слой
+ES --> EC: Обработка и передача ответа в слой контроллеров
+EC --> US: Выдача финального ответа
+
+@enduml

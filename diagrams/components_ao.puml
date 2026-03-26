@@ -1,0 +1,58 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Person(engineer, "Инженер", "Взаимодействует с сервисами через оркестратор")
+
+Container_Ext(deviceService, "Device Service", "Spring Boot", "CRUD API для работы с устройствами")
+Container_Ext(eventService, "Event Service", "Spring Boot", "Сервис для работы с событиями")
+Container_Ext(routerManagementService, "Router Management Service", "Go / Gin", "Сервис для управления роутерами")
+
+Container_Boundary(ao, "Api Orchestrator", "Spring Boot", "Фасадный оркестратор") {
+    Container(dc, "DeviceController", "Контроллер для работы с Device Service")
+    Container(ec, "EventController", "Контроллер для работы с Event Service")
+    Container(rmc, "RouterManagementController", "Контроллер для работы с Router Management Service")
+
+    Container(dpi, "DevicePortsIn", "Входящие порты, использующиеся для работы с Device Service")
+    Container(epi, "EventPortsIn", "Входящие порты, использующиеся для работы с Event Service")
+    Container(rmpi, "RouterManagementPortsIn", "Входящие порты, использующиеся для работы с Router Management Service")
+
+    Container(ds, "DeviceService", "Сервис для работы с Device Service")
+    Container(es, "EventService", "Сервис для работы с Event Service")
+    Container(rms, "RouterManagementService", "Сервис для работы с Router Management Service")
+    Container(vuss, "VersionUpdateSagaService", "Сервис для саги обновления версии")
+
+    Container(dpo, "DevicePortsOut", "Исходящие порты, использующиеся для работы с Device Service")
+    Container(epo, "EventPortsOut", "Исходящие порты, использующиеся для работы с Event Service")
+    Container(rmpo, "RouterManagementPortsOut", "Исходящие порты, использующиеся для работы с Router Management Service")
+
+    Container(dha, "DeviceHttpAdapter", "Адаптер для взаимодействия с Device Service")
+    Container(eha, "EventHttpAdapter", "Адаптер для взаимодействия с Event Service")
+    Container(rmga, "RouterManagementGRpcAdapter", "Адаптер для взаимодействия с Router Management Service")
+}
+
+Rel(engineer, dc, "Отправляет запросы в Device Service")
+Rel(engineer, ec, "Отправляет запросы в Event Service")
+Rel(engineer, rmc, "Отправляет запросы в Router Management Service")
+Rel(dc, dpi, "")
+Rel(ec, epi, "")
+Rel(rmc, rmpi, "")
+Rel(dpi, ds, "")
+Rel(ds, vuss, "")
+Rel(epi, es, "")
+Rel(rmpi, rms, "")
+Rel(vuss, dpo, "Сага обновления версии устройства в device-service")
+Rel(vuss, rmpo, "Сага обновления версии устройства в router-management-service")
+Rel(vuss, dpo, "Компенсация обновления версии устройства в device-service при сбое")
+Rel(ds, dpo, "")
+Rel(es, epo, "")
+Rel(rms, rmpo, "")
+Rel(dpo, dha, "")
+Rel(epo, eha, "")
+Rel(rmpo, rmga, "")
+Rel(dha, deviceService, "")
+Rel(eha, eventService, "")
+Rel(rmga, routerManagementService, "")
+
+@enduml
