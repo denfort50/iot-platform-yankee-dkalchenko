@@ -49,6 +49,8 @@ type AuthConfig struct {
 	Enabled bool `yaml:"enabled"`
 	// IssuerURL — URL issuer'а (например, http://host.docker.internal:8080/realms/master).
 	IssuerURL string `yaml:"issuer_url"`
+	// ClientID — ожидаемая аудитория токена (JWT aud), как правило client_id клиента в Keycloak.
+	ClientID string `yaml:"client_id"`
 }
 
 // PostgresConfig — параметры подключения к БД PostgreSQL.
@@ -169,6 +171,9 @@ func overrideFromEnv(cfg *Config) {
 		cfg.Auth.IssuerURL = strings.TrimSpace(v)
 		// Если настроен issuer, по умолчанию включаем auth; можно переопределить через AUTH_ENABLED.
 		cfg.Auth.Enabled = true
+	}
+	if v := strings.TrimSpace(os.Getenv("AUTH_CLIENT_ID")); v != "" {
+		cfg.Auth.ClientID = v
 	}
 	if v := os.Getenv("AUTH_ENABLED"); v != "" {
 		switch strings.ToLower(v) {

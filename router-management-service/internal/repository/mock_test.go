@@ -67,22 +67,6 @@ func TestMockRouterStore_DefaultAndCustomFuncs(t *testing.T) {
 	ctx := context.Background()
 	id := uuid.New()
 
-	t.Run("EnsureRouter default", func(t *testing.T) {
-		s := &MockRouterStore{}
-		r, err := s.EnsureRouter(ctx, id, "serial")
-		require.NoError(t, err)
-		require.Equal(t, id, r.ID)
-		require.Equal(t, "serial", r.SerialNumber)
-	})
-	t.Run("EnsureRouter custom", func(t *testing.T) {
-		s := &MockRouterStore{
-			EnsureRouterFunc: func(ctx context.Context, u uuid.UUID, sn string) (*Router, error) {
-				return nil, errors.New("e")
-			},
-		}
-		_, err := s.EnsureRouter(ctx, id, "x")
-		require.Error(t, err)
-	})
 	t.Run("CreateRouter", func(t *testing.T) {
 		called := false
 		s := &MockRouterStore{
@@ -138,6 +122,48 @@ func TestMockCommandStore_DefaultAndCustomFuncs(t *testing.T) {
 		require.Error(t, s.Create(ctx, cmd))
 		require.True(t, called)
 		require.NoError(t, (&MockCommandStore{}).Create(ctx, cmd))
+	})
+	t.Run("CreateMany default uses Create", func(t *testing.T) {
+		var seen []uuid.UUID
+		c1 := &Command{ID: uuid.New(), RouterID: id}
+		c2 := &Command{ID: uuid.New(), RouterID: id}
+		s := &MockCommandStore{
+			CreateFunc: func(ctx context.Context, c *Command) error {
+				seen = append(seen, c.ID)
+				return nil
+			},
+		}
+		require.NoError(t, s.CreateMany(ctx, []*Command{c1, c2}))
+		require.Len(t, seen, 2)
+		require.Contains(t, seen, c1.ID)
+		require.Contains(t, seen, c2.ID)
+		require.NoError(t, (&MockCommandStore{}).CreateMany(ctx, nil))
+	})
+	t.Run("CreateMany custom", func(t *testing.T) {
+		s := &MockCommandStore{
+			CreateManyFunc: func(ctx context.Context, cmds []*Command) error {
+				return errors.New("e")
+			},
+		}
+		require.Error(t, s.CreateMany(ctx, []*Command{cmd}))
+	})
+	t.Run("CreatePendingForAllRouters default empty", func(t *testing.T) {
+		s := &MockCommandStore{}
+		got, err := s.CreatePendingForAllRouters(ctx, "PING", "")
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+	t.Run("CreatePendingForAllRouters custom", func(t *testing.T) {
+		exp := []uuid.UUID{uuid.New()}
+		s := &MockCommandStore{
+			CreatePendingForAllRoutersFunc: func(ctx context.Context, ct, pl string) ([]uuid.UUID, error) {
+				require.Equal(t, "X", ct)
+				return exp, nil
+			},
+		}
+		got, err := s.CreatePendingForAllRouters(ctx, "X", "{}")
+		require.NoError(t, err)
+		require.Equal(t, exp, got)
 	})
 	t.Run("ListPendingOrSentByRouter", func(t *testing.T) {
 		list := []*Command{cmd}

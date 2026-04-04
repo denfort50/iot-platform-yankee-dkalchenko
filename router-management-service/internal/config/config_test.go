@@ -23,6 +23,7 @@ func clearEnvForLoad(t *testing.T) {
 	t.Setenv("SCHEDULER_CRON", "")
 	t.Setenv("SENT_TIMEOUT_MINUTES", "")
 	t.Setenv("KEYCLOAK_ISSUER_URI", "")
+	t.Setenv("AUTH_CLIENT_ID", "")
 	t.Setenv("AUTH_ENABLED", "")
 	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
 	t.Setenv("OTEL_SERVICE_NAME", "")
@@ -125,6 +126,7 @@ scheduler:
 auth:
   enabled: false
   issuer_url: "http://example/realms/master"
+  client_id: "yaml-client"
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
 		t.Fatalf("write yaml: %v", err)
@@ -161,6 +163,9 @@ auth:
 	if cfg.Auth.IssuerURL != "http://kc:8080/realms/master" {
 		t.Fatalf("Auth.IssuerURL: got %q", cfg.Auth.IssuerURL)
 	}
+	if cfg.Auth.ClientID != "yaml-client" {
+		t.Fatalf("Auth.ClientID: got %q", cfg.Auth.ClientID)
+	}
 	// AUTH_ENABLED имеет приоритет над автоподключением при наличии KEYCLOAK_ISSUER_URI.
 	if cfg.Auth.Enabled {
 		t.Fatalf("Auth.Enabled: expected false")
@@ -183,6 +188,7 @@ func TestLoad_AuthAndSchedulerEnvParsing(t *testing.T) {
 
 	// Покрываем ветку AUTH_ENABLED=true (после автоподключения при наличии KEYCLOAK_ISSUER_URI).
 	t.Setenv("KEYCLOAK_ISSUER_URI", "http://kc:8080/realms/master")
+	t.Setenv("AUTH_CLIENT_ID", "integration-test-cli")
 	t.Setenv("AUTH_ENABLED", "true")
 
 	cfg, err := Load()
@@ -219,6 +225,9 @@ func TestLoad_AuthAndSchedulerEnvParsing(t *testing.T) {
 	}
 	if cfg.Auth.IssuerURL != "http://kc:8080/realms/master" {
 		t.Fatalf("Auth.IssuerURL: got %q", cfg.Auth.IssuerURL)
+	}
+	if cfg.Auth.ClientID != "integration-test-cli" {
+		t.Fatalf("Auth.ClientID: got %q", cfg.Auth.ClientID)
 	}
 }
 

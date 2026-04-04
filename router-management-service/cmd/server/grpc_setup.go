@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -22,11 +24,17 @@ func buildGRPCServerOptions(ctx context.Context, cfg *config.Config) ([]grpc.Ser
 		opts = append(opts, grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	}
 	if cfg.Auth.Enabled && cfg.Auth.IssuerURL != "" {
-		authenticator, err := auth.NewJWTAuth(ctx, cfg.Auth.IssuerURL)
+		if strings.TrimSpace(cfg.Auth.ClientID) == "" {
+			return nil, fmt.Errorf("auth is enabled but client_id is empty: set auth.client_id in config or AUTH_CLIENT_ID (JWT audience)")
+		}
+		authenticator, err := auth.NewJWTAuth(ctx, cfg.Auth.IssuerURL, cfg.Auth.ClientID)
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, grpc.ChainUnaryInterceptor(authenticator.UnaryServerInterceptor()))
+		opts = append(opts,
+			grpc.ChainUnaryInterceptor(authenticator.UnaryServerInterceptor()),
+			grpc.ChainStreamInterceptor(authenticator.StreamServerInterceptor()),
+		)
 	}
 	return opts, nil
 }

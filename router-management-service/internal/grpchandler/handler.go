@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	apiv1 "router-management-service/api/proto/api/v1"
 	"router-management-service/internal/metrics"
@@ -89,17 +87,17 @@ func (s *Server) SendCommand(ctx context.Context, req *apiv1.SendCommandRequest)
 func (s *Server) CommandsPoll(ctx context.Context, req *apiv1.CommandsPollRequest) (resp *apiv1.CommandsPollResponse, err error) {
 	start := time.Now()
 	defer func() {
-		ok := err == nil
+		ok := err == nil && resp != nil && resp.GetError() == ""
 		metrics.RecordGRPC("CommandsPoll", ok, time.Since(start))
 	}()
 	routerID, parseErr := uuid.Parse(req.GetRouterId())
 	if parseErr != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid router_id: %v", parseErr)
+		return &apiv1.CommandsPollResponse{Error: strPtr("invalid router_id: " + parseErr.Error())}, nil
 	}
 	commands, pollErr := s.svc.PollCommands(ctx, routerID)
 	if pollErr != nil {
 		s.log.ErrorContext(ctx, "CommandsPoll failed", "err", pollErr)
-		return nil, status.Errorf(codes.Internal, "%v", pollErr)
+		return &apiv1.CommandsPollResponse{Error: strPtr(pollErr.Error())}, nil
 	}
 	out := make([]*apiv1.CommandMessage, len(commands))
 	for i, c := range commands {

@@ -149,3 +149,64 @@ func TestPostgresCommandStore_FailSentBefore(t *testing.T) {
 	require.Equal(t, StatusSent, status2)
 }
 
+func TestPostgresCommandStore_CreatePendingForAllRouters(t *testing.T) {
+	ctx := context.Background()
+	pool, cleanup := setupPostgres(t)
+	defer cleanup()
+
+	r1, r2 := uuid.New(), uuid.New()
+	inv1, inv2 := "INV-"+r1.String()[:8], "INV-"+r2.String()[:8]
+	for _, tc := range []struct {
+		id  uuid.UUID
+		inv string
+	}{
+		{r1, inv1},
+		{r2, inv2},
+	} {
+		_, err := pool.Exec(ctx,
+			`INSERT INTO routers (id, serial_number, inventory_number, name, model, location)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			tc.id, "sn-"+tc.id.String(), tc.inv, "R", "M", "L",
+		)
+		require.NoError(t, err)
+	}
+
+	store := NewPostgresCommandStore(pool)
+	ids, err := store.CreatePendingForAllRouters(ctx, "PING", `{"k":1}`)
+	require.NoError(t, err)
+	require.Len(t, ids, 2)
+
+	var n int
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT count(*) FROM commands WHERE router_id = ANY($1) AND command_type = 'PING' AND status = 'PENDING'`,
+		[]uuid.UUID{r1, r2},
+	).Scan(&n))
+	require.Equal(t, 2, n)
+}
+
+func TestPostgresCommandStore_CreateMany_AtomicRollback(t *testing.T) {
+	ctx := context.Background()
+	pool, cleanup := setupPostgres(t)
+	defer cleanup()
+
+	routerOK := uuid.New()
+	_, err := pool.Exec(ctx,
+		`INSERT INTO routers (id, serial_number, inventory_number, name, model, location)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		routerOK, "sn-a", "INV-A", "R", "M", "L",
+	)
+	require.NoError(t, err)
+
+	store := NewPostgresCommandStore(pool)
+	badRouter := uuid.New()
+	cmds := []*Command{
+		{ID: uuid.New(), RouterID: routerOK, CommandType: "PING", Status: StatusPending},
+		{ID: uuid.New(), RouterID: badRouter, CommandType: "PING", Status: StatusPending},
+	}
+	require.Error(t, store.CreateMany(ctx, cmds))
+
+	var n int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM commands WHERE id = ANY($1)`, []uuid.UUID{cmds[0].ID, cmds[1].ID}).Scan(&n))
+	require.Zero(t, n, "partial insert must be rolled back")
+}
+

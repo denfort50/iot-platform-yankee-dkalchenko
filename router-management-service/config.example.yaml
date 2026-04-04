@@ -20,6 +20,8 @@ auth:
   enabled: true
   # Локально: localhost. В Docker (compose) — обычно http://host.docker.internal:8080/realms/master (как в iss JWT).
   issuer_url: "http://localhost:8080/realms/master"
+  # OAuth2 client_id выдачи токена; проверка: claim aud содержит это значение или azp совпадает (типично для access token Keycloak). ENV: AUTH_CLIENT_ID.
+  client_id: "admin-cli"
 
 # Трассировка (OpenTelemetry OTLP/HTTP). Удобнее задать ENV: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_SERVICE_NAME.
 # telemetry:

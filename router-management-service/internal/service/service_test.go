@@ -114,20 +114,31 @@ func TestCommandService_SendCommand_RouterNotFound(t *testing.T) {
 	if !strings.Contains(err.Error(), "router not found") {
 		t.Errorf("expected router not found message, got %v", err)
 	}
+	if !errors.Is(err, ErrRouterNotFound) {
+		t.Errorf("expected ErrRouterNotFound, got %v", err)
+	}
 }
 
-// TestCommandService_PollCommands_UpdatesLastSeen проверяет, что при опросе команд вызывается EnsureRouter (обновление last_seen_at).
+// TestCommandService_PollCommands_UpdatesLastSeen проверяет, что при опросе команд вызывается UpdateLastSeen для зарегистрированного роутера.
 func TestCommandService_PollCommands_UpdatesLastSeen(t *testing.T) {
 	ctx := context.Background()
 	r1 := uuid.New()
-	ensureCalled := false
+	regRouter := &repository.Router{ID: r1, SerialNumber: "sn1", CreatedAt: time.Now()}
+	updateCalled := false
+	var updateID uuid.UUID
+	var updateAt time.Time
 	routers := &repository.MockRouterStore{
-		EnsureRouterFunc: func(ctx context.Context, id uuid.UUID, serialNumber string) (*repository.Router, error) {
-			ensureCalled = true
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*repository.Router, error) {
 			if id != r1 {
 				t.Errorf("expected router %s, got %s", r1, id)
 			}
-			return &repository.Router{ID: id, SerialNumber: id.String(), CreatedAt: time.Now()}, nil
+			return regRouter, nil
+		},
+		UpdateLastSeenFunc: func(ctx context.Context, routerID uuid.UUID, at time.Time) error {
+			updateCalled = true
+			updateID = routerID
+			updateAt = at
+			return nil
 		},
 	}
 	commands := &repository.MockCommandStore{
@@ -137,13 +148,41 @@ func TestCommandService_PollCommands_UpdatesLastSeen(t *testing.T) {
 	}
 	svc := NewCommandService(routers, commands, slog.Default())
 
+	before := time.Now()
 	_, err := svc.PollCommands(ctx, r1)
 	if err != nil {
 		t.Fatalf("PollCommands: %v", err)
 	}
-	if !ensureCalled {
-		t.Error("EnsureRouter was not called")
+	if !updateCalled {
+		t.Fatal("UpdateLastSeen was not called")
 	}
+	if updateID != r1 {
+		t.Errorf("expected UpdateLastSeen router_id %s, got %s", r1, updateID)
+	}
+	if updateAt.Before(before) {
+		t.Errorf("expected last_seen_at >= test start")
+	}
+}
+
+// TestCommandService_PollCommands_RouterNotFound проверяет ошибку при опросе незарегистрированного роутера.
+func TestCommandService_PollCommands_RouterNotFound(t *testing.T) {
+	ctx := context.Background()
+	r1 := uuid.New()
+	routers := &repository.MockRouterStore{
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*repository.Router, error) {
+			return nil, nil
+		},
+	}
+	svc := NewCommandService(routers, &repository.MockCommandStore{
+		ListPendingOrSentByRouterFunc: func(ctx context.Context, routerID uuid.UUID) ([]*repository.Command, error) {
+			t.Fatal("ListPendingOrSentByRouter must not be called when router is unknown")
+			return nil, nil
+		},
+	}, slog.Default())
+
+	_, err := svc.PollCommands(ctx, r1)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrRouterNotFound), "expected ErrRouterNotFound, got %v", err)
 }
 
 // TestCommandService_PollCommands_MarksPendingSent проверяет, что при наличии PENDING команд
@@ -168,17 +207,20 @@ func TestCommandService_PollCommands_MarksPendingSent(t *testing.T) {
 		SentAt:      nil,
 	}
 
-	ensureCalled := false
+	updateCalled := false
 	markSentCalled := false
 	var sentAtArg time.Time
 	var markedIDs []uuid.UUID
 
 	routers := &repository.MockRouterStore{
-		EnsureRouterFunc: func(ctx context.Context, id uuid.UUID, serialNumber string) (*repository.Router, error) {
-			ensureCalled = true
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*repository.Router, error) {
 			require.Equal(t, r1, id)
-			require.Empty(t, serialNumber)
-			return &repository.Router{ID: id, SerialNumber: id.String(), CreatedAt: time.Now()}, nil
+			return &repository.Router{ID: id, SerialNumber: "sn1", CreatedAt: time.Now()}, nil
+		},
+		UpdateLastSeenFunc: func(ctx context.Context, routerID uuid.UUID, at time.Time) error {
+			updateCalled = true
+			require.Equal(t, r1, routerID)
+			return nil
 		},
 	}
 
@@ -198,7 +240,7 @@ func TestCommandService_PollCommands_MarksPendingSent(t *testing.T) {
 	out, err := svc.PollCommands(ctx, r1)
 	require.NoError(t, err)
 
-	require.True(t, ensureCalled, "expected EnsureRouter to be called")
+	require.True(t, updateCalled, "expected UpdateLastSeen to be called")
 	require.True(t, markSentCalled, "expected MarkSent to be called for pending commands")
 
 	// MarkSent должен получать только pending command_id.
@@ -277,20 +319,17 @@ func TestCommandService_RegisterRouter(t *testing.T) {
 	})
 }
 
-// TestCommandService_SendCommandToAllRouters проверяет создание команды для каждого зарегистрированного роутера при вызове SendCommandToAllRouters.
+// TestCommandService_SendCommandToAllRouters проверяет делегирование в CreatePendingForAllRouters (атомарная рассылка в хранилище).
 func TestCommandService_SendCommandToAllRouters(t *testing.T) {
 	ctx := context.Background()
-	r1, r2 := uuid.New(), uuid.New()
-	var created []*repository.Command
-	routers := &repository.MockRouterStore{
-		ListRouterIDsFunc: func(ctx context.Context) ([]uuid.UUID, error) {
-			return []uuid.UUID{r1, r2}, nil
-		},
-	}
+	id1, id2 := uuid.New(), uuid.New()
+	var gotType, gotPayload string
+	routers := &repository.MockRouterStore{}
 	commands := &repository.MockCommandStore{
-		CreateFunc: func(ctx context.Context, cmd *repository.Command) error {
-			created = append(created, cmd)
-			return nil
+		CreatePendingForAllRoutersFunc: func(ctx context.Context, commandType, payload string) ([]uuid.UUID, error) {
+			gotType = commandType
+			gotPayload = payload
+			return []uuid.UUID{id1, id2}, nil
 		},
 	}
 	svc := NewCommandService(routers, commands, slog.Default())
@@ -302,18 +341,28 @@ func TestCommandService_SendCommandToAllRouters(t *testing.T) {
 	if len(ids) != 2 {
 		t.Fatalf("expected 2 command ids, got %d", len(ids))
 	}
-	if len(created) != 2 {
-		t.Fatalf("expected Create called 2 times, got %d", len(created))
+	if ids[0] != id1 || ids[1] != id2 {
+		t.Errorf("expected ids from store, got %v", ids)
 	}
-	if created[0].RouterID != r1 || created[1].RouterID != r2 {
-		t.Errorf("expected router_ids %s, %s; got %s, %s", r1, r2, created[0].RouterID, created[1].RouterID)
+	if gotType != "PING" || gotPayload != "" {
+		t.Errorf("unexpected type/payload %q %q", gotType, gotPayload)
 	}
-	if created[0].CommandType != "PING" || created[1].CommandType != "PING" {
-		t.Error("expected command_type PING for both")
+}
+
+// TestCommandService_SendCommandToAllRouters_StoreError проверяет ошибку при рассылке.
+func TestCommandService_SendCommandToAllRouters_StoreError(t *testing.T) {
+	ctx := context.Background()
+	commands := &repository.MockCommandStore{
+		CreatePendingForAllRoutersFunc: func(ctx context.Context, commandType, payload string) ([]uuid.UUID, error) {
+			return nil, errors.New("db unavailable")
+		},
 	}
-	if ids[0] != created[0].ID || ids[1] != created[1].ID {
-		t.Error("returned ids must match created command ids")
-	}
+	svc := NewCommandService(&repository.MockRouterStore{}, commands, slog.Default())
+
+	ids, err := svc.SendCommandToAllRouters(ctx, "PING", "")
+	require.Error(t, err)
+	require.Nil(t, ids)
+	require.Contains(t, err.Error(), "create commands")
 }
 
 // TestCommandService_SendCommandToAllRouters_EmptyCommandType проверяет ошибку при пустом command_type.
@@ -329,12 +378,7 @@ func TestCommandService_SendCommandToAllRouters_EmptyCommandType(t *testing.T) {
 // TestCommandService_SendCommandToAllRouters_NoRouters проверяет пустой список command_ids при отсутствии роутеров.
 func TestCommandService_SendCommandToAllRouters_NoRouters(t *testing.T) {
 	ctx := context.Background()
-	routers := &repository.MockRouterStore{
-		ListRouterIDsFunc: func(ctx context.Context) ([]uuid.UUID, error) {
-			return nil, nil
-		},
-	}
-	svc := NewCommandService(routers, &repository.MockCommandStore{}, slog.Default())
+	svc := NewCommandService(&repository.MockRouterStore{}, &repository.MockCommandStore{}, slog.Default())
 	ids, err := svc.SendCommandToAllRouters(ctx, "PING", "")
 	if err != nil {
 		t.Fatalf("SendCommandToAllRouters: %v", err)

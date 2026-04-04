@@ -86,11 +86,12 @@ func TestFullIntegration_AllGrpcEndpoints(t *testing.T) {
 	commandStore := repository.NewPostgresCommandStore(pool)
 	svc := service.NewCommandService(routerStore, commandStore, log)
 
-	jwtAuth, err := auth.NewJWTAuth(ctx, kcIssuer)
+	jwtAuth, err := auth.NewJWTAuth(ctx, kcIssuer, "admin-cli")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(jwtAuth.UnaryServerInterceptor()),
+		grpc.ChainStreamInterceptor(jwtAuth.StreamServerInterceptor()),
 	)
 	apiv1.RegisterRouterManagementServiceServer(grpcServer, grpchandler.NewServer(svc, log))
 
@@ -160,6 +161,7 @@ func TestFullIntegration_AllGrpcEndpoints(t *testing.T) {
 	// --- 7. CommandsPoll для первого роутера: должна быть одна команда ---
 	pollResp, err := client.CommandsPoll(authCtx, &apiv1.CommandsPollRequest{RouterId: routerID1})
 	require.NoError(t, err)
+	require.Nil(t, pollResp.Error)
 	require.NotNil(t, pollResp.Commands)
 	require.Len(t, pollResp.Commands, 1)
 	assert.Equal(t, commandID1, pollResp.Commands[0].CommandId)
@@ -178,6 +180,7 @@ func TestFullIntegration_AllGrpcEndpoints(t *testing.T) {
 	// --- 9. Повторный CommandsPoll: выданных команд больше нет (статус ACKED не возвращается) ---
 	pollResp2, err := client.CommandsPoll(authCtx, &apiv1.CommandsPollRequest{RouterId: routerID1})
 	require.NoError(t, err)
+	require.Nil(t, pollResp2.Error)
 	require.Empty(t, pollResp2.Commands, "acked command should not appear in poll")
 
 	// --- 10. SendCommand без router_id — всем роутерам (должно быть 2 команды) ---
@@ -193,6 +196,7 @@ func TestFullIntegration_AllGrpcEndpoints(t *testing.T) {
 	for _, routerID := range []string{routerID1, routerID2} {
 		poll, err := client.CommandsPoll(authCtx, &apiv1.CommandsPollRequest{RouterId: routerID})
 		require.NoError(t, err)
+		require.Nil(t, poll.Error)
 		require.Len(t, poll.Commands, 1, "router %s should have one PING command", routerID)
 		assert.Equal(t, "PING", poll.Commands[0].CommandType)
 	}

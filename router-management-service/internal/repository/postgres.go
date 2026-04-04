@@ -40,26 +40,6 @@ func NewPostgresCommandStore(pool *pgxpool.Pool) *PostgresCommandStore {
 	return &PostgresCommandStore{pool: pool}
 }
 
-// EnsureRouter вставляет роутера с id и serial_number или обновляет last_seen_at при конфликте по id; возвращает запись.
-func (s *PostgresRouterStore) EnsureRouter(ctx context.Context, id uuid.UUID, serialNumber string) (*Router, error) {
-	if serialNumber == "" {
-		serialNumber = id.String()
-	}
-	query := `
-INSERT INTO routers (id, serial_number, last_seen_at)
-VALUES ($1, $2, now())
-ON CONFLICT (id) DO UPDATE SET last_seen_at = now()
-RETURNING id, serial_number, last_seen_at, created_at`
-	var r Router
-	var lastSeen *time.Time
-	err := s.pool.QueryRow(ctx, query, id, serialNumber).Scan(&r.ID, &r.SerialNumber, &lastSeen, &r.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("ensure router: %w", err)
-	}
-	r.LastSeenAt = lastSeen
-	return &r, nil
-}
-
 // UpdateLastSeen обновляет поле last_seen_at у роутера по id.
 func (s *PostgresRouterStore) UpdateLastSeen(ctx context.Context, routerID uuid.UUID, at time.Time) error {
 	_, err := s.pool.Exec(ctx, `UPDATE routers SET last_seen_at = $2 WHERE id = $1`, routerID, at)
@@ -138,28 +118,93 @@ VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''), NULLIF($5,''), NULLIF($6,''))`,
 	return nil
 }
 
+// stringPayloadForJSONB преобразует строку payload для колонки JSONB (NULL при пустой строке).
+func stringPayloadForJSONB(payload string) interface{} {
+	if payload == "" {
+		return nil
+	}
+	if json.Valid([]byte(payload)) {
+		return payload
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
+func commandPayloadArg(cmd *Command) interface{} {
+	return stringPayloadForJSONB(cmd.Payload)
+}
+
 // Create вставляет команду в таблицу commands; пустой payload сохраняется как NULL в JSONB.
 func (s *PostgresCommandStore) Create(ctx context.Context, cmd *Command) error {
-	// Пустая строка невалидна для JSONB; при пустом payload записываем NULL.
-	// Non-JSON strings (e.g. "no content") are stored as JSON strings.
-	var payloadArg interface{} = nil
-	if cmd.Payload != "" {
-		if json.Valid([]byte(cmd.Payload)) {
-			payloadArg = cmd.Payload
-		} else {
-			b, _ := json.Marshal(cmd.Payload)
-			payloadArg = string(b)
-		}
-	}
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO commands (id, router_id, command_type, payload, status)
 VALUES ($1, $2, $3, $4::jsonb, $5)`,
-		cmd.ID, cmd.RouterID, cmd.CommandType, payloadArg, cmd.Status,
+		cmd.ID, cmd.RouterID, cmd.CommandType, commandPayloadArg(cmd), cmd.Status,
 	)
 	if err != nil {
 		return fmt.Errorf("create command: %w", err)
 	}
 	return nil
+}
+
+// CreateMany вставляет команды одной транзакцией (откат при любой ошибке).
+func (s *PostgresCommandStore) CreateMany(ctx context.Context, cmds []*Command) error {
+	if len(cmds) == 0 {
+		return nil
+	}
+	beginner, ok := s.pool.(interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return fmt.Errorf("CreateMany requires a transaction-capable pool (e.g. *pgxpool.Pool)")
+	}
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	insertSQL := `INSERT INTO commands (id, router_id, command_type, payload, status)
+VALUES ($1, $2, $3, $4::jsonb, $5)`
+	for _, cmd := range cmds {
+		_, err := tx.Exec(ctx, insertSQL, cmd.ID, cmd.RouterID, cmd.CommandType, commandPayloadArg(cmd), cmd.Status)
+		if err != nil {
+			return fmt.Errorf("create command: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+// CreatePendingForAllRouters вставляет по одной команде на каждый роутер одним INSERT...SELECT (снимок таблицы routers согласован с вставкой).
+func (s *PostgresCommandStore) CreatePendingForAllRouters(ctx context.Context, commandType, payload string) ([]uuid.UUID, error) {
+	payloadArg := stringPayloadForJSONB(payload)
+	rows, err := s.pool.Query(ctx,
+		`INSERT INTO commands (id, router_id, command_type, payload, status)
+SELECT gen_random_uuid(), r.id, $1, $2::jsonb, $3
+FROM routers r
+ORDER BY r.id
+RETURNING id`,
+		commandType, payloadArg, StatusPending,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("broadcast commands: %w", err)
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // ListPendingOrSentByRouter возвращает команды роутера в статусах PENDING и SENT, отсортированные по created_at.

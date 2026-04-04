@@ -10,19 +10,10 @@ import (
 
 // MockRouterStore — заглушка RouterStore; каждому методу соответствует опциональная функция (если nil — возвращается значение по умолчанию).
 type MockRouterStore struct {
-	EnsureRouterFunc   func(ctx context.Context, id uuid.UUID, serialNumber string) (*Router, error)
 	CreateRouterFunc   func(ctx context.Context, r *Router) error
 	UpdateLastSeenFunc func(ctx context.Context, routerID uuid.UUID, at time.Time) error
 	ListRouterIDsFunc  func(ctx context.Context) ([]uuid.UUID, error)
 	GetByIDFunc        func(ctx context.Context, id uuid.UUID) (*Router, error)
-}
-
-// EnsureRouter вызывает EnsureRouterFunc или возвращает роутера с переданными id и serialNumber.
-func (m *MockRouterStore) EnsureRouter(ctx context.Context, id uuid.UUID, serialNumber string) (*Router, error) {
-	if m.EnsureRouterFunc != nil {
-		return m.EnsureRouterFunc(ctx, id, serialNumber)
-	}
-	return &Router{ID: id, SerialNumber: serialNumber, CreatedAt: time.Now()}, nil
 }
 
 // CreateRouter вызывает CreateRouterFunc или возвращает nil (успех).
@@ -60,6 +51,8 @@ func (m *MockRouterStore) GetByID(ctx context.Context, id uuid.UUID) (*Router, e
 // MockCommandStore — заглушка CommandStore для тестов; при nil-функции методы возвращают успех или пустой результат.
 type MockCommandStore struct {
 	CreateFunc                    func(ctx context.Context, cmd *Command) error
+	CreateManyFunc                      func(ctx context.Context, cmds []*Command) error
+	CreatePendingForAllRoutersFunc      func(ctx context.Context, commandType, payload string) ([]uuid.UUID, error)
 	ListPendingOrSentByRouterFunc func(ctx context.Context, routerID uuid.UUID) ([]*Command, error)
 	MarkSentFunc                  func(ctx context.Context, commandIDs []uuid.UUID, sentAt time.Time) error
 	AckFunc                       func(ctx context.Context, commandID, routerID uuid.UUID, ackedAt time.Time) error
@@ -72,6 +65,27 @@ func (m *MockCommandStore) Create(ctx context.Context, cmd *Command) error {
 		return m.CreateFunc(ctx, cmd)
 	}
 	return nil
+}
+
+// CreateMany вызывает CreateManyFunc или последовательно Create для каждой команды.
+func (m *MockCommandStore) CreateMany(ctx context.Context, cmds []*Command) error {
+	if m.CreateManyFunc != nil {
+		return m.CreateManyFunc(ctx, cmds)
+	}
+	for _, c := range cmds {
+		if err := m.Create(ctx, c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreatePendingForAllRouters вызывает CreatePendingForAllRoutersFunc или возвращает пустой слайс (без рассылки).
+func (m *MockCommandStore) CreatePendingForAllRouters(ctx context.Context, commandType, payload string) ([]uuid.UUID, error) {
+	if m.CreatePendingForAllRoutersFunc != nil {
+		return m.CreatePendingForAllRoutersFunc(ctx, commandType, payload)
+	}
+	return []uuid.UUID{}, nil
 }
 
 // ListPendingOrSentByRouter вызывает ListPendingOrSentByRouterFunc или возвращает nil, nil.

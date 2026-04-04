@@ -11,9 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
 	apiv1 "router-management-service/api/proto/api/v1"
@@ -59,13 +57,13 @@ func TestServer_GRPC_RegisterRouterAndSendCommand(t *testing.T) {
 			}
 			return nil, nil
 		},
-		ListRouterIDsFunc: func(ctx context.Context) ([]uuid.UUID, error) {
-			return []uuid.UUID{rid, uuid.New()}, nil
-		},
 	}
 	commands := &repository.MockCommandStore{
 		CreateFunc: func(ctx context.Context, cmd *repository.Command) error {
 			return nil
+		},
+		CreatePendingForAllRoutersFunc: func(ctx context.Context, commandType, payload string) ([]uuid.UUID, error) {
+			return []uuid.UUID{uuid.New(), uuid.New()}, nil
 		},
 	}
 	svc := service.NewCommandService(routers, commands, slog.Default())
@@ -106,7 +104,7 @@ func TestServer_GRPC_RegisterRouterAndSendCommand(t *testing.T) {
 	require.Len(t, sendAll.GetCommandIds(), 2)
 }
 
-func TestServer_CommandsPoll_InvalidRouterID_GRPCError(t *testing.T) {
+func TestServer_CommandsPoll_InvalidRouterID_ErrorInResponse(t *testing.T) {
 	ctx := context.Background()
 	svc := service.NewCommandService(&repository.MockRouterStore{}, &repository.MockCommandStore{}, slog.Default())
 	conn := dialBufConn(t, func(s *grpc.Server) {
@@ -114,17 +112,38 @@ func TestServer_CommandsPoll_InvalidRouterID_GRPCError(t *testing.T) {
 	})
 	client := apiv1.NewRouterManagementServiceClient(conn)
 
-	_, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: "bad"})
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.InvalidArgument, st.Code())
+	resp, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: "bad"})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.GetError())
+	require.Contains(t, resp.GetError(), "invalid router_id")
 }
 
-func TestServer_CommandsPoll_InternalOnServiceError(t *testing.T) {
+func TestServer_CommandsPoll_NotFoundWhenRouterUnknown(t *testing.T) {
 	ctx := context.Background()
 	rid := uuid.New()
-	routers := &repository.MockRouterStore{}
+	svc := service.NewCommandService(&repository.MockRouterStore{}, &repository.MockCommandStore{}, slog.Default())
+	conn := dialBufConn(t, func(s *grpc.Server) {
+		apiv1.RegisterRouterManagementServiceServer(s, grpchandler.NewServer(svc, slog.Default()))
+	})
+	client := apiv1.NewRouterManagementServiceClient(conn)
+
+	resp, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: rid.String()})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.GetError())
+	require.Contains(t, resp.GetError(), "router not found")
+}
+
+func TestServer_CommandsPoll_ServiceErrorInResponse(t *testing.T) {
+	ctx := context.Background()
+	rid := uuid.New()
+	routers := &repository.MockRouterStore{
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*repository.Router, error) {
+			if id == rid {
+				return &repository.Router{ID: rid, SerialNumber: "sn"}, nil
+			}
+			return nil, nil
+		},
+	}
 	commands := &repository.MockCommandStore{
 		ListPendingOrSentByRouterFunc: func(ctx context.Context, routerID uuid.UUID) ([]*repository.Command, error) {
 			return nil, errors.New("db down")
@@ -136,18 +155,24 @@ func TestServer_CommandsPoll_InternalOnServiceError(t *testing.T) {
 	})
 	client := apiv1.NewRouterManagementServiceClient(conn)
 
-	_, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: rid.String()})
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.Internal, st.Code())
+	resp, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: rid.String()})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.GetError())
+	require.Contains(t, resp.GetError(), "db down")
 }
 
 func TestServer_CommandsPoll_And_Ack(t *testing.T) {
 	ctx := context.Background()
 	rid := uuid.New()
 	cmdID := uuid.New()
-	routers := &repository.MockRouterStore{}
+	routers := &repository.MockRouterStore{
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*repository.Router, error) {
+			if id == rid {
+				return &repository.Router{ID: rid, SerialNumber: "sn"}, nil
+			}
+			return nil, nil
+		},
+	}
 	commands := &repository.MockCommandStore{
 		ListPendingOrSentByRouterFunc: func(ctx context.Context, routerID uuid.UUID) ([]*repository.Command, error) {
 			return []*repository.Command{{
@@ -168,6 +193,7 @@ func TestServer_CommandsPoll_And_Ack(t *testing.T) {
 
 	poll, err := client.CommandsPoll(ctx, &apiv1.CommandsPollRequest{RouterId: rid.String()})
 	require.NoError(t, err)
+	require.Empty(t, poll.GetError())
 	require.Len(t, poll.GetCommands(), 1)
 
 	ackBadRouter, err := client.CommandsAck(ctx, &apiv1.CommandsAckRequest{

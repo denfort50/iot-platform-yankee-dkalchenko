@@ -12,30 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostgresRouterStore_EnsureRouter_PgxMock(t *testing.T) {
-	t.Parallel()
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	t.Cleanup(func() { mock.Close() })
-
-	rid := uuid.New()
-	created := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
-	ls := time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC)
-	rows := pgxmock.NewRows([]string{"id", "serial_number", "last_seen_at", "created_at"}).
-		AddRow(rid, rid.String(), &ls, created)
-
-	mock.ExpectQuery(`INSERT INTO routers`).
-		WithArgs(rid, rid.String()).
-		WillReturnRows(rows)
-
-	s := &PostgresRouterStore{pool: mock}
-	got, err := s.EnsureRouter(context.Background(), rid, "")
-	require.NoError(t, err)
-	require.Equal(t, rid, got.ID)
-	require.NotNil(t, got.LastSeenAt)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestPostgresRouterStore_UpdateLastSeen_PgxMock(t *testing.T) {
 	t.Parallel()
 	mock, err := pgxmock.NewPool()
@@ -188,6 +164,82 @@ func TestPostgresCommandStore_Create_PgxMock(t *testing.T) {
 	})
 }
 
+func TestPostgresCommandStore_CreateMany_PgxMock(t *testing.T) {
+	t.Parallel()
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		t.Cleanup(func() { mock.Close() })
+		c1 := &Command{ID: uuid.New(), RouterID: uuid.New(), CommandType: "PING", Payload: "", Status: StatusPending}
+		c2 := &Command{ID: uuid.New(), RouterID: uuid.New(), CommandType: "PING", Payload: `{"a":1}`, Status: StatusPending}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`INSERT INTO commands`).
+			WithArgs(c1.ID, c1.RouterID, c1.CommandType, nil, c1.Status).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec(`INSERT INTO commands`).
+			WithArgs(c2.ID, c2.RouterID, c2.CommandType, c2.Payload, c2.Status).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectCommit()
+
+		s := &PostgresCommandStore{pool: mock}
+		require.NoError(t, s.CreateMany(context.Background(), []*Command{c1, c2}))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+	t.Run("rollback on second exec", func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		t.Cleanup(func() { mock.Close() })
+		c1 := &Command{ID: uuid.New(), RouterID: uuid.New(), CommandType: "PING", Payload: "", Status: StatusPending}
+		c2 := &Command{ID: uuid.New(), RouterID: uuid.New(), CommandType: "PING", Payload: "", Status: StatusPending}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`INSERT INTO commands`).
+			WithArgs(c1.ID, c1.RouterID, c1.CommandType, nil, c1.Status).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec(`INSERT INTO commands`).
+			WithArgs(c2.ID, c2.RouterID, c2.CommandType, nil, c2.Status).
+			WillReturnError(errors.New("constraint"))
+		mock.ExpectRollback()
+
+		s := &PostgresCommandStore{pool: mock}
+		require.Error(t, s.CreateMany(context.Background(), []*Command{c1, c2}))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestPostgresCommandStore_CreateMany_Empty(t *testing.T) {
+	t.Parallel()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(func() { mock.Close() })
+	s := &PostgresCommandStore{pool: mock}
+	require.NoError(t, s.CreateMany(context.Background(), nil))
+	require.NoError(t, s.CreateMany(context.Background(), []*Command{}))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPostgresCommandStore_CreatePendingForAllRouters_PgxMock(t *testing.T) {
+	t.Parallel()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(func() { mock.Close() })
+
+	id1, id2 := uuid.New(), uuid.New()
+	rows := pgxmock.NewRows([]string{"id"}).AddRow(id1).AddRow(id2)
+	mock.ExpectQuery(`INSERT INTO commands`).
+		WithArgs("PING", nil, StatusPending).
+		WillReturnRows(rows)
+
+	s := &PostgresCommandStore{pool: mock}
+	got, err := s.CreatePendingForAllRouters(context.Background(), "PING", "")
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{id1, id2}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestPostgresCommandStore_ListPendingOrSentByRouter_PgxMock(t *testing.T) {
 	t.Parallel()
 	mock, err := pgxmock.NewPool()
@@ -263,22 +315,6 @@ func TestPostgresCommandStore_Ack_PgxMock(t *testing.T) {
 		require.NoError(t, s.Ack(context.Background(), cid, rid, at))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
-
-func TestPostgresRouterStore_EnsureRouter_PgxMock_QueryError(t *testing.T) {
-	t.Parallel()
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	t.Cleanup(func() { mock.Close() })
-	rid := uuid.New()
-	mock.ExpectQuery(`INSERT INTO routers`).
-		WithArgs(rid, rid.String()).
-		WillReturnError(errors.New("db"))
-	s := &PostgresRouterStore{pool: mock}
-	_, err = s.EnsureRouter(context.Background(), rid, "")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ensure router")
-	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestPostgresRouterStore_ListRouterIDs_PgxMock_QueryError(t *testing.T) {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,10 +68,25 @@ func TestBuildGRPCServerOptions_AuthEnabled_UnreachableIssuer(t *testing.T) {
 		Auth: config.AuthConfig{
 			Enabled:   true,
 			IssuerURL: "http://127.0.0.1:1/realms/unreachable",
+			ClientID:  "test-client",
 		},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_, err := buildGRPCServerOptions(ctx, cfg)
 	require.Error(t, err)
+}
+
+func TestBuildGRPCServerOptions_AuthEnabled_MissingClientID(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Auth: config.AuthConfig{
+			Enabled:   true,
+			IssuerURL: "http://example.invalid/realms/master",
+			ClientID:  "",
+		},
+	}
+	_, err := buildGRPCServerOptions(context.Background(), cfg)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "client_id"))
 }

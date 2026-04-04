@@ -40,9 +40,8 @@ const (
 	StatusFailed  = "FAILED"  // зарезервировано на будущее
 )
 
-// RouterStore — интерфейс хранилища роутеров: создание/обновление, получение по ID, список ID, обновление last_seen_at.
+// RouterStore — интерфейс хранилища роутеров: создание, получение по ID, список ID, обновление last_seen_at.
 type RouterStore interface {
-	EnsureRouter(ctx context.Context, id uuid.UUID, serialNumber string) (*Router, error)
 	CreateRouter(ctx context.Context, r *Router) error
 	UpdateLastSeen(ctx context.Context, routerID uuid.UUID, at time.Time) error
 	ListRouterIDs(ctx context.Context) ([]uuid.UUID, error)
@@ -52,6 +51,11 @@ type RouterStore interface {
 // CommandStore — интерфейс хранилища команд: создание, выборка PENDING/SENT по роутеру, пометка отправки и подтверждения.
 type CommandStore interface {
 	Create(ctx context.Context, cmd *Command) error
+	// CreateMany вставляет все команды в одной транзакции: при любой ошибке откат, без частичной записи.
+	CreateMany(ctx context.Context, cmds []*Command) error
+	// CreatePendingForAllRouters — одна атомарная вставка: по одной PENDING-команде на каждую строку routers
+	// (INSERT...SELECT), без окна между отдельным SELECT списка и INSERT.
+	CreatePendingForAllRouters(ctx context.Context, commandType string, payload string) ([]uuid.UUID, error)
 	ListPendingOrSentByRouter(ctx context.Context, routerID uuid.UUID) ([]*Command, error)
 	MarkSent(ctx context.Context, commandIDs []uuid.UUID, sentAt time.Time) error
 	Ack(ctx context.Context, commandID, routerID uuid.UUID, ackedAt time.Time) error

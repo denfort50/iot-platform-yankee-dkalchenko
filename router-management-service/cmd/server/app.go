@@ -102,7 +102,7 @@ func initApp(ctx context.Context, log *slog.Logger) (*appRuntime, error) {
 	}
 
 	if cfg.Auth.Enabled && cfg.Auth.IssuerURL != "" {
-		log.Info("auth enabled", "issuer", cfg.Auth.IssuerURL)
+		log.Info("auth enabled", "issuer", cfg.Auth.IssuerURL, "client_id", cfg.Auth.ClientID)
 	}
 
 	httpRouter := newHTTPRouter(cfg, pool, log)

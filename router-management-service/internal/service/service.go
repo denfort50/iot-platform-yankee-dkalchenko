@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,6 +12,9 @@ import (
 	"github.com/google/uuid"
 	"router-management-service/internal/repository"
 )
+
+// ErrRouterNotFound возвращается, если роутер с данным id не зарегистрирован (нет строки в хранилище).
+var ErrRouterNotFound = errors.New("router not found")
 
 // CommandService реализует сценарии API: RegisterRouter, SendCommand, PollCommands, AckCommand; использует RouterStore и CommandStore.
 type CommandService struct {
@@ -63,7 +67,7 @@ func (s *CommandService) SendCommand(ctx context.Context, routerID uuid.UUID, co
 		return uuid.Nil, fmt.Errorf("get router: %w", err)
 	}
 	if router == nil {
-		return uuid.Nil, fmt.Errorf("router not found: %s", routerID)
+		return uuid.Nil, fmt.Errorf("%w: %s", ErrRouterNotFound, routerID)
 	}
 	cmd := &repository.Command{
 		ID:          uuid.New(),
@@ -81,38 +85,31 @@ func (s *CommandService) SendCommand(ctx context.Context, routerID uuid.UUID, co
 }
 
 // SendCommandToAllRouters создаёт по одной команде для каждого зарегистрированного роутера; commandType обязателен. Возвращает список id созданных команд (пустой, если роутеров нет).
+// Вставка выполняется одной атомарной операцией в хранилище команд (без отдельного чтения списка роутеров в сервисе).
 func (s *CommandService) SendCommandToAllRouters(ctx context.Context, commandType string, payload string) ([]uuid.UUID, error) {
 	if commandType == "" {
 		return nil, fmt.Errorf("command_type is required")
 	}
-	routerIDs, err := s.routers.ListRouterIDs(ctx)
+	ids, err := s.commands.CreatePendingForAllRouters(ctx, commandType, payload)
 	if err != nil {
-		return nil, fmt.Errorf("list routers: %w", err)
+		return nil, fmt.Errorf("create commands: %w", err)
 	}
-	ids := make([]uuid.UUID, 0, len(routerIDs))
-	for _, routerID := range routerIDs {
-		cmd := &repository.Command{
-			ID:          uuid.New(),
-			RouterID:    routerID,
-			CommandType: commandType,
-			Payload:     payload,
-			Status:      repository.StatusPending,
-			CreatedAt:   time.Now(),
-		}
-		if err := s.commands.Create(ctx, cmd); err != nil {
-			return nil, fmt.Errorf("create command for router %s: %w", routerID, err)
-		}
-		ids = append(ids, cmd.ID)
-	}
-	s.log.InfoContext(ctx, "send_command_to_all: created commands", "count", len(ids), "router_ids", routerIDs)
+	s.log.InfoContext(ctx, "send_command_to_all: created commands", "count", len(ids))
 	return ids, nil
 }
 
-// PollCommands возвращает команды роутера в статусах PENDING/SENT; при выдаче обновляет last_seen_at (EnsureRouter) и переводит PENDING в SENT.
+// PollCommands возвращает команды роутера в статусах PENDING/SENT; при выдаче обновляет last_seen_at и переводит PENDING в SENT. Роутер должен быть зарегистрирован (RegisterRouter).
 func (s *CommandService) PollCommands(ctx context.Context, routerID uuid.UUID) ([]*repository.Command, error) {
 	now := time.Now()
-	if _, err := s.routers.EnsureRouter(ctx, routerID, ""); err != nil {
-		return nil, fmt.Errorf("ensure router: %w", err)
+	router, err := s.routers.GetByID(ctx, routerID)
+	if err != nil {
+		return nil, fmt.Errorf("get router: %w", err)
+	}
+	if router == nil {
+		return nil, fmt.Errorf("%w: %s", ErrRouterNotFound, routerID)
+	}
+	if err := s.routers.UpdateLastSeen(ctx, routerID, now); err != nil {
+		return nil, fmt.Errorf("update last seen: %w", err)
 	}
 	commands, err := s.commands.ListPendingOrSentByRouter(ctx, routerID)
 	if err != nil {

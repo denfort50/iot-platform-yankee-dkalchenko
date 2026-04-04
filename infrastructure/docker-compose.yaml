@@ -888,6 +888,7 @@ services:
       SCHEDULER_CRON: "*/1 * * * *"
       SENT_TIMEOUT_MINUTES: 10
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:-admin-cli}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
       OTEL_SERVICE_NAME: router-management-service
     depends_on:

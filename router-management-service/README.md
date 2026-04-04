@@ -27,11 +27,14 @@ gRPC API для управления роутерами: регистрация 
 | `SCHEDULER_CRON`                     | Cron (5 полей, без секунд)                                                                | `*/1 * * * *`             |
 | `SENT_TIMEOUT_MINUTES`               | Через сколько минут после `sent_at` помечать команду FAILED                               | 10                        |
 | `KEYCLOAK_ISSUER_URI`                | Issuer Keycloak (OIDC), например `http://host.docker.internal:8080/realms/master`         | —                         |
+| `AUTH_CLIENT_ID`                     | OAuth2 `client_id`, для которого выдан токен: в JWT проверяются `aud` и/или `azp` (Keycloak access token) | —                         |
 | `AUTH_ENABLED`                       | Проверка JWT (`true`/`false`). При заданном `KEYCLOAK_ISSUER_URI` по умолчанию включается | —                         |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Полный URL OTLP HTTP для трейсов, например `http://alloy:4318/v1/traces`                  | —                         |
 | `OTEL_SERVICE_NAME`                  | Имя сервиса в трейсах                                                                     | router-management-service |
 
 В YAML см. `config.example.yaml`: `server`, `postgres`, `scheduler`, `auth`, секция `telemetry` (опционально: `otlp_traces_endpoint`, `service_name`).
+
+Если включена проверка JWT (`AUTH_ENABLED` или задан `KEYCLOAK_ISSUER_URI`), нужно указать **`AUTH_CLIENT_ID`** (или `auth.client_id` в YAML): это ожидаемая аудитория токена; иначе сервис не стартует.
 
 ## Сборка и запуск
 
