@@ -1,6 +1,18 @@
 # IoT Microservice Platform – система обработки событий электронных IoT-устройств
 
-Платформа включает: **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT), **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL), **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse), **simple-event-sender** (генерация тестовых событий), **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO), **router-management-service** (Go: gRPC API регистрации роутеров, отправки команд, опроса и подтверждения; отдельная БД PostgreSQL; JWT через Keycloak; health/metrics и опционально OTLP). Общие Avro-схемы и контракт REST API вынесены в **iot-avro-schemas** и **device-service-api** (OpenAPI + Feign-клиент).
+Платформа включает:
+* **events-collector-service** (сбор событий, Outbox, публикация в Kafka и сохранение в ClickHouse)
+* **event-service** (read-only REST API для чтения событий устройств из ClickHouse)
+* **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL)
+* **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT)
+* **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO)
+* **router-management-service** (Go: gRPC API регистрации роутеров, отправки команд, опроса и подтверждения; отдельная БД PostgreSQL; JWT через Keycloak; health/metrics и опционально OTLP)
+* **simple-event-sender** (генератор тестовых событий)
+
+Общие Avro-схемы и REST-контракты вынесены в:
+- **iot-avro-schemas**
+- **event-service-api**
+- **device-service-api**
 
 ## Технологический стек
 
@@ -67,6 +79,8 @@ iot-platform-yankee-dkalchenko/
 ├─ device-service-api/               # OpenAPI‑спецификация и Feign‑клиент для REST API Device Service
 │  ├─ src/main/resources/openapi/device-api.yaml
 │  └─ README.md
+├─ event-service-api/                # OpenAPI‑спецификация REST API Event Service (events read API)
+│  └─ src/main/resources/openapi/event-api.yaml
 ├─ device-service/                   # REST API управления устройствами (CRUD, Kafka, шарды, Redis, Keycloak)
 │  ├─ src/main/java/ru/dkalchenko/device/...
 │  ├─ src/main/resources/
@@ -74,6 +88,14 @@ iot-platform-yankee-dkalchenko/
 │  │  ├─ application-local.yaml
 │  │  ├─ application-docker.yaml
 │  │  └─ sharding-sphere-config.yaml
+│  ├─ Dockerfile
+│  └─ README.md
+├─ event-service/                    # Read-only REST API чтения событий из ClickHouse
+│  ├─ src/main/java/ru/dkalchenko/event/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  └─ application-docker.yaml
 │  ├─ Dockerfile
 │  └─ README.md
 ├─ device-collector-service/          # Сервис приёма сообщений об устройствах из Kafka → PostgreSQL (шарды)
@@ -150,7 +172,7 @@ iot-platform-yankee-dkalchenko/
 ### Вариант A — через `Makefile` (рекомендуется)
 
 ```bash
-# Полный запуск: поднимает Kafka, Schema Registry, Nexus → собирает iot-avro-schemas и device-service-api → поднимает все контейнеры
+# Полный запуск: поднимает Kafka, Schema Registry, Nexus → собирает iot-avro-schemas, device-service-api и event-service-api → поднимает все контейнеры
 make all
 ```
 
@@ -214,8 +236,9 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Device Service Load Balancer (Nginx) | 8090, 9070       | API device-service (балансировка)          |
 | Device Collector Service             | 8096             | Приём устройств из Kafka → PostgreSQL      |
 | Events Collector Service             | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
+| Event Service                        | 8100, 9081       | Read-only API событий из ClickHouse (API, actuator) |
 | Simple Event Sender                  | 8092             | REST API генерации тестовых событий        |
-| Failed Events Processor             | 8098, 9078       | Обработка DLT → JSON в MinIO (API, actuator) |
+| Failed Events Processor              | 8098, 9078       | Обработка DLT → JSON в MinIO (API, actuator) |
 | Router Management Service (gRPC)    | 50051            | Контейнер `router-management-service`      |
 | Router Management Service (HTTP)    | 8091             | Health / ready / metrics (проброс с 8080)    |
 | Postgres (router-management)        | 5439             | Контейнер `router-management-postgres`     |

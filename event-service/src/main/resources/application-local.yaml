@@ -1,0 +1,26 @@
+server:
+  port: 8098
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/master
+
+clickhouse:
+  datasource:
+    url: jdbc:clickhouse://localhost:8123/default
+    username: default
+    password: ""
+
+management:
+  server:
+    port: 9078
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

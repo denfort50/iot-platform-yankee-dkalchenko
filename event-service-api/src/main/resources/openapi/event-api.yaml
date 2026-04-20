@@ -1,0 +1,139 @@
+openapi: 3.0.3
+info:
+  title: Event Service API
+  version: 1.0.0
+  description: Read-only API для событий устройств (ClickHouse)
+servers:
+  - url: /
+tags:
+  - name: Events
+    description: События устройств
+paths:
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      tags:
+        - Events
+      summary: Получить список событий по устройству и фильтрам
+      parameters:
+        - in: query
+          name: deviceId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор устройства (partition key)
+        - in: query
+          name: fromTimestamp
+          schema:
+            type: integer
+            format: int64
+          description: Начало интервала (Unix ms), включительно
+        - in: query
+          name: toTimestamp
+          schema:
+            type: integer
+            format: int64
+          description: Конец интервала (Unix ms), включительно
+        - in: query
+          name: type
+          schema:
+            type: string
+          description: Фильтр по типу события
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Список событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          description: Невалидные параметры
+  /api/v1/events/{eventId}:
+    get:
+      operationId: getEventById
+      tags:
+        - Events
+      summary: Получить событие по eventId и deviceId
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deviceId
+          required: true
+          schema:
+            type: string
+          description: Partition key
+      responses:
+        '200':
+          description: Найденное событие
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Событие не найдено
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        eventId:
+          type: string
+          example: "event-001"
+        deviceId:
+          type: string
+          example: "abc-123"
+        timestamp:
+          type: integer
+          format: int64
+          example: 1718920034567
+        type:
+          type: string
+          example: "temperature"
+        payload:
+          type: string
+          example: "{}"
+      required:
+        - eventId
+        - deviceId
+        - timestamp
+        - type
+        - payload
+    EventPage:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 100
+        total:
+          type: integer
+          format: int64
+          example: 233
+      required:
+        - events
+        - page
+        - size
+        - total

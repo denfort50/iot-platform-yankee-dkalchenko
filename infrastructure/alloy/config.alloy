@@ -204,6 +204,47 @@ discovery.relabel "device_service" {
   }
 }
 
+// Discovery для event-service: скрапим по IP в сети, путь /actuator/prometheus, порт 9090.
+discovery.relabel "event_service" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = ".*event-service.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = ".*iot-platform-net.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_ip"]
+    regex         = "(.+)"
+    target_label  = "__address__"
+    replacement   = "${1}:9090"
+  }
+
+  rule {
+    target_label = "__metrics_path__"
+    replacement  = "/actuator/prometheus"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "event-service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "instance"
+    replacement   = "${1}:9090"
+  }
+}
+
 // Discovery для router-management-service: Prometheus /metrics на HTTP-порту контейнера (8080).
 discovery.relabel "router_management_service" {
   targets = discovery.docker.containers.targets
@@ -324,6 +365,12 @@ prometheus.scrape "device_collector" {
 prometheus.scrape "device_service" {
   scrape_interval = "10s"
   targets         = discovery.relabel.device_service.output
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+prometheus.scrape "event_service" {
+  scrape_interval = "10s"
+  targets         = discovery.relabel.event_service.output
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
 

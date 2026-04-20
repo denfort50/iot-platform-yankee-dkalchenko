@@ -1,0 +1,24 @@
+# Docker: хосты из docker-compose, приложение на 8080, actuator на 9090.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+clickhouse:
+  datasource:
+    url: ${CLICKHOUSE_URL}
+    username: ${CLICKHOUSE_USER}
+    password: ${CLICKHOUSE_PASSWORD}
+
+management:
+  server:
+    port: 9090
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}

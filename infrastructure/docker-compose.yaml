@@ -75,25 +75,6 @@ services:
       timeout: 5s
       retries: 20
 
-  camunda-postgres:
-    image: postgres:17-alpine
-    container_name: camunda-postgres
-    environment:
-      POSTGRES_USER: ${CAMUNDA_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${CAMUNDA_POSTGRES_PASSWORD}
-      POSTGRES_DB: camunda
-    volumes:
-      - camunda-postgres-data:/var/lib/postgresql/data
-    ports:
-      - "5435:5432"
-    networks:
-      - iot-platform-net
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${CAMUNDA_POSTGRES_USER}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-
   clickhouse:
     image: clickhouse/clickhouse-server:25.12.4
     container_name: clickhouse
@@ -377,26 +358,63 @@ services:
       interval: 30s
       retries: 3
 
-  camunda:
-    image: camunda/camunda-bpm-platform:7.24.0
-    container_name: camunda
-    depends_on:
-      camunda-postgres:
-        condition: service_healthy
-    ports:
-      - "8088:8080"
-    networks:
-      - iot-platform-net
-    environment:
-      DB_DRIVER: org.postgresql.Driver
-      DB_URL: jdbc:postgresql://camunda-postgres:5432/camunda
-      DB_USERNAME: ${CAMUNDA_POSTGRES_USER}
-      DB_PASSWORD: ${CAMUNDA_POSTGRES_PASSWORD}
-    healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#  camunda:
+#    image: camunda/camunda-bpm-platform:7.24.0
+#    container_name: camunda
+#    depends_on:
+#      camunda-postgres:
+#        condition: service_healthy
+#    ports:
+#      - "8088:8080"
+#    networks:
+#      - iot-platform-net
+#    environment:
+#      DB_DRIVER: org.postgresql.Driver
+#      DB_URL: jdbc:postgresql://camunda-postgres:5432/camunda
+#      DB_USERNAME: ${CAMUNDA_POSTGRES_USER}
+#      DB_PASSWORD: ${CAMUNDA_POSTGRES_PASSWORD}
+#    healthcheck:
+#      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#
+#  camunda-postgres:
+#    image: postgres:17-alpine
+#    container_name: camunda-postgres
+#    environment:
+#      POSTGRES_USER: ${CAMUNDA_POSTGRES_USER}
+#      POSTGRES_PASSWORD: ${CAMUNDA_POSTGRES_PASSWORD}
+#      POSTGRES_DB: camunda
+#    volumes:
+#      - camunda-postgres-data:/var/lib/postgresql/data
+#    ports:
+#      - "5435:5432"
+#    networks:
+#      - iot-platform-net
+#    healthcheck:
+#      test: [ "CMD-SHELL", "pg_isready -U ${CAMUNDA_POSTGRES_USER}" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 20
+#
+#  camunda-postgres-exporter:
+#    image: prometheuscommunity/postgres-exporter:v0.18.1
+#    container_name: camunda-postgres-exporter
+#    depends_on:
+#      camunda-postgres:
+#        condition: service_healthy
+#    environment:
+#      DATA_SOURCE_NAME: postgresql://${CAMUNDA_POSTGRES_USER}:${CAMUNDA_POSTGRES_PASSWORD}@camunda-postgres:5432/camunda?sslmode=disable
+#    ports:
+#      - "9190:9187"
+#    networks:
+#      - iot-platform-net
+#    healthcheck:
+#      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9187/metrics" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
 
   iot-platform-postgres-exporter-shard0:
     image: prometheuscommunity/postgres-exporter:v0.18.1
@@ -462,24 +480,6 @@ services:
       DATA_SOURCE_NAME: postgresql://${KEYCLOAK_POSTGRES_USER}:${KEYCLOAK_POSTGRES_PASSWORD}@keycloak-postgres:5432/keycloak?sslmode=disable
     ports:
       - "9189:9187"
-    networks:
-      - iot-platform-net
-    healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9187/metrics" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  camunda-postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.18.1
-    container_name: camunda-postgres-exporter
-    depends_on:
-      camunda-postgres:
-        condition: service_healthy
-    environment:
-      DATA_SOURCE_NAME: postgresql://${CAMUNDA_POSTGRES_USER}:${CAMUNDA_POSTGRES_PASSWORD}@camunda-postgres:5432/camunda?sslmode=disable
-    ports:
-      - "9190:9187"
     networks:
       - iot-platform-net
     healthcheck:
@@ -781,6 +781,34 @@ services:
       retries: 5
       start_period: 30s
 
+  event-service:
+    build:
+      context: ..
+      dockerfile: event-service/Dockerfile
+    image: event-service:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8100:8080"
+      - "9081:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_ISSUER_URI: http://host.docker.internal:8080/realms/master
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   device-service-lb:
     image: nginx:1.27-alpine
     container_name: device-service-lb
@@ -924,7 +952,7 @@ volumes:
   postgres-shard1-data:
   postgres-shard2-data:
   keycloak-postgres-data:
-  camunda-postgres-data:
+#  camunda-postgres-data:
   clickhouse-data:
   minio-data:
   loki_data:

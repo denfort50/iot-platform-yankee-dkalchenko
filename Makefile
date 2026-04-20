@@ -3,9 +3,9 @@ NEXUS_URL = http://localhost:8082
 INFRA_SERVICES ?= keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter camunda camunda-postgres camunda-postgres-exporter clickhouse redis redis-insight redis-exporter kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter postgres-shard0 postgres-shard1 postgres-shard2 iot-platform-postgres-exporter-shard0 iot-platform-postgres-exporter-shard1 iot-platform-postgres-exporter-shard2 nexus minio prometheus grafana tempo loki alloy
 MODULE_SIX ?= router-management-service router-management-postgres router-management-postgres-exporter prometheus grafana tempo loki alloy keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter
 
-.PHONY: all stop clean logs infra infra-logs infra-stop rebuild device-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
+.PHONY: all stop clean logs infra infra-logs infra-stop rebuild device-service-image event-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
 
-all: up build-artifacts start device-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
+all: up build-artifacts device-service-image event-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image start
 
 ifeq ($(OS),Windows_NT)
 GRADLE = .\gradlew.bat
@@ -39,6 +39,8 @@ build-artifacts:
 	@$(GRADLE) :iot-avro-schemas:build
 	@echo "Building device-service-api (publish to Nexus)..."
 	@$(GRADLE) :device-service-api:build
+	@echo "Building event-service-api (publish to Nexus)..."
+	@$(GRADLE) :event-service-api:build
 
 start:
 	$(DOCKER_COMPOSE) up -d
@@ -76,6 +78,14 @@ device-service-image:
 		$(GRADLE) :device-service:clean :device-service:bootJar && \
 		echo "Building Docker image device-service:1.0.0..." && \
 		docker build -f device-service/Dockerfile -t device-service:1.0.0 . \
+	)
+
+event-service-image:
+	@docker image inspect event-service:1.0.0 >$(NULL_DEV) 2>&1 && echo "Image event-service:1.0.0 already exists, skipping." || ( \
+		echo "Building event-service JAR on host..." && \
+		$(GRADLE) :event-service:clean :event-service:bootJar && \
+		echo "Building Docker image event-service:1.0.0..." && \
+		docker build -f event-service/Dockerfile -t event-service:1.0.0 . \
 	)
 
 device-collector-service-image:
