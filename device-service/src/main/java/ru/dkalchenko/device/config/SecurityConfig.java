@@ -18,12 +18,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-	/**
-	 * Отключает трейсы security filter chain (before/after), оставляя трейсы аутентификации и авторизации.
-	 */
+	/** Micrometer: без спанов filter chain / authorize / secured request и т.п. */
 	@Bean
 	public SecurityObservationSettings securityObservationSettings() {
-		return SecurityObservationSettings.withDefaults().build();
+		return SecurityObservationSettings.noObservations();
 	}
 
 	@Bean

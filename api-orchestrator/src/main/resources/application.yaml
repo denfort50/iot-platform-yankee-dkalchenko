@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: api-orchestrator
+  # Блокирующий Feign на boundedElastic: без auto теряется trace/observation → второй trace id в Tempo
+  reactor:
+    context-propagation: auto
+  cloud:
+    openfeign:
+      micrometer:
+        enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/master}
+
+clients:
+  device-service:
+    url: ${DEVICE_SERVICE_URL:http://localhost:8081/v1}
+  event-service:
+    url: ${EVENT_SERVICE_URL:http://localhost:8082}
+  router-management:
+    host: ${ROUTER_MANAGEMENT_GRPC_HOST:localhost}
+    port: ${ROUTER_MANAGEMENT_GRPC_PORT:9090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    prometheus:
+      access: unrestricted
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  otlp:
+    logging:
+      export:
+        enabled: false
+    metrics:
+      export:
+        enabled: false
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      deviceService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+      eventService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+      routerManagement:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+  retry:
+    instances:
+      deviceService:
+        maxAttempts: 3
+        waitDuration: 100ms
+      eventService:
+        maxAttempts: 3
+        waitDuration: 100ms
+      routerManagement:
+        maxAttempts: 2
+        waitDuration: 100ms
+  timelimiter:
+    instances:
+      deviceService:
+        timeoutDuration: 5s
+      eventService:
+        timeoutDuration: 5s
+      routerManagement:
+        timeoutDuration: 5s
+
+logging:
+  level:
+    ru.dkalchenko.orchestrator: INFO

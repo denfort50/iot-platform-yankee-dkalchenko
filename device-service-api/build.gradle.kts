@@ -78,11 +78,6 @@ dependencies {
 	implementation("jakarta.validation:jakarta.validation-api:${versions["validationApiVersion"]}")
 }
 
-// При сборке — публикация JAR в Nexus
-tasks.named("build") {
-	dependsOn(tasks["publish"])
-}
-
 // Публикация в Nexus: Feign-клиент + OpenAPI-спецификация (в JAR как ресурс)
 val nexusUrl: String = project.findProperty("nexus.url") as String? ?: System.getenv("NEXUS_URL") ?: "http://localhost:8082/repository/maven-releases/"
 val nexusUser: String = project.findProperty("nexus.user") as String? ?: System.getenv("NEXUS_USER") ?: "admin"

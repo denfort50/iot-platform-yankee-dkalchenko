@@ -79,6 +79,9 @@ public class DeviceCache {
 		device.setUpdatedAt(node.has("updatedAt") && !node.get("updatedAt").isNull()
 				? OffsetDateTime.parse(node.get("updatedAt").asText())
 				: OffsetDateTime.now());
+		if (node.has("targetSoftwareVersion") && !node.get("targetSoftwareVersion").isNull()) {
+			device.setTargetSoftwareVersion(node.get("targetSoftwareVersion").asText());
+		}
 		return device;
 	}
 

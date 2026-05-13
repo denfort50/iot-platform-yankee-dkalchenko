@@ -1,0 +1,377 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "9.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "9.0.0" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "9.0.0" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1776643200001,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "HTTP (public API)",
+      "type": "row"
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Business RPS",
+      "description": "Запросы к /devices*, /commands*, /events* (исключая actuator).",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Error RPS (4xx + 5xx)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\",status=~\"4..|5..\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2,
+          "color": { "mode": "continuous-GrYlRd" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "5xx RPS",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\",status=~\"5..\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2,
+          "color": { "mode": "continuous-GrYlRd" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.01 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "P95 latency",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\"}[$__rate_interval])))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "color": { "mode": "continuous-RdYlGr" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "RPS by endpoint",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (uri, method) (rate(http_server_requests_seconds_count{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\"}[$__rate_interval]))",
+          "legendFormat": "{{method}} {{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 12,
+      "title": "P95 latency by endpoint",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, uri, method) (rate(http_server_requests_seconds_bucket{job=\"api-orchestrator\",uri=~\"/devices.*|/commands.*|/events.*\"}[$__rate_interval])))",
+          "legendFormat": "{{method}} {{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 3, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 20,
+      "panels": [],
+      "title": "Version update saga & resilience",
+      "type": "row"
+    },
+    {
+      "type": "stat",
+      "id": 21,
+      "title": "Saga outcomes (rate)",
+      "description": "orchestrator_version_update_total по outcome.",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 14 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(orchestrator_version_update_total{job=\"api-orchestrator\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 22,
+      "title": "Idempotent replay (rate)",
+      "description": "orchestrator_version_update_idempotent_replay_total",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 14 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(orchestrator_version_update_idempotent_replay_total{job=\"api-orchestrator\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 23,
+      "title": "Saga duration (avg, s)",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 14 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(orchestrator_version_update_duration_seconds_sum{job=\"api-orchestrator\"}[$__rate_interval])) / sum(rate(orchestrator_version_update_duration_seconds_count{job=\"api-orchestrator\"}[$__rate_interval]))"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 3, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 24,
+      "title": "Saga outcomes by type",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(orchestrator_version_update_total{job=\"api-orchestrator\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 25,
+      "title": "Resilience4j circuit breaker (state)",
+      "description": "0=CLOSED, 1=OPEN, 2=HALF_OPEN (зависит от версии resilience4j-micrometer).",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "datasource": "$datasource",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (name) (resilience4j_circuitbreaker_state{job=\"api-orchestrator\"})",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "decimals": 0, "min": 0, "max": 2, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["api-orchestrator", "iot", "http"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "default", "value": "default" },
+        "hide": 0,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"],
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+  },
+  "timezone": "",
+  "title": "API Orchestrator",
+  "uid": "api-orchestrator",
+  "version": 1,
+  "description": "HTTP-фасад api-orchestrator (/devices*, /commands*, /events*), кастомные метрики саги обновления версии, circuit breaker resilience4j."
+}

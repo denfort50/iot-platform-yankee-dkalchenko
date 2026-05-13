@@ -5,9 +5,14 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import ru.dkalchenko.device.api.model.Device;
 import ru.dkalchenko.device.api.model.DeviceRequest;
+import ru.dkalchenko.device.api.model.MessageResponse;
+import ru.dkalchenko.device.api.model.TargetVersionRequest;
 import ru.dkalchenko.device.audit.AuditOutcome;
 import ru.dkalchenko.device.audit.DeviceAuditEvent;
 import ru.dkalchenko.device.audit.DeviceAuditService;
@@ -15,9 +20,11 @@ import ru.dkalchenko.device.audit.DeviceOperation;
 import ru.dkalchenko.device.audit.AuditContextProvider;
 import ru.dkalchenko.device.cache.DeviceCache;
 import ru.dkalchenko.device.metrics.DeviceServiceMetrics;
+import ru.dkalchenko.device.exception.TargetVersionConflictException;
 import ru.dkalchenko.device.repository.DeviceRepository;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -40,6 +47,7 @@ public class DeviceService {
 	DeviceServiceMetrics metrics;
 	DeviceAuditService deviceAuditService;
 	AuditContextProvider auditContextProvider;
+	StringRedisTemplate redisTemplate;
 
 	private void audit(DeviceOperation operation, String deviceId, AuditOutcome outcome, String errorMessage) {
 		deviceAuditService.record(DeviceAuditEvent.builder()
@@ -58,6 +66,7 @@ public class DeviceService {
 		try {
 			Optional<Device> cached = deviceCache.get(deviceId);
 			if (cached.isPresent()) {
+				MetaJson.enrichDeviceFromMeta(cached.get());
 				metrics.recordSuccess("GET");
 				audit(DeviceOperation.GET, deviceId, AuditOutcome.SUCCESS, null);
 				sample.stop(metrics.getTimer("GET"));
@@ -65,6 +74,7 @@ public class DeviceService {
 			}
 			Device fromDb = deviceRepository.findById(deviceId);
 			if (fromDb != null) {
+				MetaJson.enrichDeviceFromMeta(fromDb);
 				deviceCache.put(fromDb);
 				metrics.recordSuccess("GET");
 				audit(DeviceOperation.GET, deviceId, AuditOutcome.SUCCESS, null);
@@ -120,6 +130,61 @@ public class DeviceService {
 			metrics.recordFailure("UPDATE");
 			audit(DeviceOperation.UPDATE, deviceId, AuditOutcome.FAILURE, e.getMessage());
 			log.error("Error updating device: deviceId={}", deviceId, e);
+			throw e;
+		} finally {
+			sample.stop(metrics.getTimer("UPDATE"));
+		}
+	}
+
+	/**
+	 * Фиксирует целевую версию в meta и публикует UPDATE в Kafka.
+	 */
+	public ResponseEntity<MessageResponse> setDeviceTargetVersion(String deviceId, TargetVersionRequest request) {
+		Timer.Sample sample = Timer.start();
+		String target = request.getTargetVersion();
+		String idemKey = request.getIdempotencyKey();
+		try {
+			if (idemKey != null && !idemKey.isBlank()) {
+				String redisKey = "device:target-idem:" + deviceId + ":" + idemKey;
+				String stored = redisTemplate.opsForValue().get(redisKey);
+				if (stored != null) {
+					if (stored.equals(target)) {
+						return ResponseEntity.status(HttpStatus.ACCEPTED)
+								.body(new MessageResponse()
+										.message("Target version idempotent replay")
+										.deviceId(deviceId));
+					}
+					throw new TargetVersionConflictException("Idempotency key reused with different targetVersion");
+				}
+			}
+			Optional<Device> deviceOpt = getDevice(deviceId);
+			if (deviceOpt.isEmpty()) {
+				return ResponseEntity.notFound().build();
+			}
+			Device device = deviceOpt.get();
+			String mergedMeta = MetaJson.mergeTargetSoftwareVersion(device.getMeta(), target);
+			devicePublisher.sendUpdate(deviceId, device.getDeviceType(), mergedMeta);
+			device.setMeta(mergedMeta);
+			device.setTargetSoftwareVersion(target);
+			device.setUpdatedAt(OffsetDateTime.now());
+			deviceCache.put(device);
+			if (idemKey != null && !idemKey.isBlank()) {
+				redisTemplate.opsForValue().set(
+						"device:target-idem:" + deviceId + ":" + idemKey,
+						target,
+						Duration.ofDays(7));
+			}
+			audit(DeviceOperation.UPDATE, deviceId, AuditOutcome.SUCCESS, null);
+			return ResponseEntity.status(HttpStatus.ACCEPTED)
+					.body(new MessageResponse()
+							.message("Target software version accepted")
+							.deviceId(deviceId));
+		} catch (TargetVersionConflictException e) {
+			throw e;
+		} catch (Exception e) {
+			metrics.recordFailure("UPDATE");
+			audit(DeviceOperation.UPDATE, deviceId, AuditOutcome.FAILURE, e.getMessage());
+			log.error("Error setting target version: deviceId={}", deviceId, e);
 			throw e;
 		} finally {
 			sample.stop(metrics.getTimer("UPDATE"));

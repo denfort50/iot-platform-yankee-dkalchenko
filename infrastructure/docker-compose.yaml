@@ -809,6 +809,44 @@ services:
       retries: 5
       start_period: 30s
 
+  api-orchestrator:
+    build:
+      context: ..
+      dockerfile: api-orchestrator/Dockerfile
+    image: api-orchestrator:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8101:8080"
+      - "9082:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_ISSUER_URI: http://host.docker.internal:8080/realms/master
+      DEVICE_SERVICE_URL: http://device-service-lb/v1
+      EVENT_SERVICE_URL: http://event-service:8080
+      ROUTER_MANAGEMENT_GRPC_HOST: router-management-service
+      ROUTER_MANAGEMENT_GRPC_PORT: "50051"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+      # ru.dkalchenko.orchestrator — только наш код; уровень задаётся через .env (по умолчанию DEBUG)
+      LOGGING_LEVEL_RU_DKALCHENKO_ORCHESTRATOR: ${API_ORCHESTRATOR_APP_LOG_LEVEL:-DEBUG}
+    depends_on:
+      device-service:
+        condition: service_healthy
+      event-service:
+        condition: service_healthy
+      router-management-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - iot-platform-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9090/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   device-service-lb:
     image: nginx:1.27-alpine
     container_name: device-service-lb

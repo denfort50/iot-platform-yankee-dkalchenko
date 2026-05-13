@@ -3,9 +3,9 @@ NEXUS_URL = http://localhost:8082
 INFRA_SERVICES ?= keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter camunda camunda-postgres camunda-postgres-exporter clickhouse redis redis-insight redis-exporter kafka1 kafka2 kafka3 schema-registry kafka-ui kafka-exporter postgres-shard0 postgres-shard1 postgres-shard2 iot-platform-postgres-exporter-shard0 iot-platform-postgres-exporter-shard1 iot-platform-postgres-exporter-shard2 nexus minio prometheus grafana tempo loki alloy
 MODULE_SIX ?= router-management-service router-management-postgres router-management-postgres-exporter prometheus grafana tempo loki alloy keycloak keycloak-postgres keycloak-init keycloak-postgres-exporter
 
-.PHONY: all stop clean logs infra infra-logs infra-stop rebuild device-service-image event-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
+.PHONY: all stop clean logs infra infra-logs infra-stop rebuild build-artifacts device-service-image event-service-image api-orchestrator-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image
 
-all: up build-artifacts device-service-image event-service-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image start
+all: up build-artifacts device-service-image event-service-image api-orchestrator-image device-collector-service-image events-collector-service-image simple-event-sender-image failed-events-processor-image start
 
 ifeq ($(OS),Windows_NT)
 GRADLE = .\gradlew.bat
@@ -35,12 +35,18 @@ up:
 	@echo "Nexus is healthy!"
 
 build-artifacts:
-	@echo "Building iot-avro-schemas (register schemas + publish to Nexus)..."
+	@echo "Registering iot-avro-schemas, building and publishing to Nexus (skip if version exists)..."
 	@$(GRADLE) :iot-avro-schemas:build
-	@echo "Building device-service-api (publish to Nexus)..."
-	@$(GRADLE) :device-service-api:build
-	@echo "Building event-service-api (publish to Nexus)..."
-	@$(GRADLE) :event-service-api:build
+	@echo "device-service-api: build and publish to Nexus (skip if version exists)..."
+	@$(GRADLE) :device-service-api:publish
+	@echo "event-service-api: build and publish to Nexus (skip if version exists)..."
+	@$(GRADLE) :event-service-api:publish
+	@echo "api-orchestrator-api: build and publish to Nexus (skip if version exists)..."
+	@$(GRADLE) :api-orchestrator-api:publish
+	@echo "router-management-api: build and publish to Nexus (skip if version exists)..."
+	@$(GRADLE) :router-management-api:publish
+	@echo "router-manager-client: build and publish to Nexus (skip if version exists)..."
+	@$(GRADLE) :router-manager-client:publish
 
 start:
 	$(DOCKER_COMPOSE) up -d
@@ -86,6 +92,14 @@ event-service-image:
 		$(GRADLE) :event-service:clean :event-service:bootJar && \
 		echo "Building Docker image event-service:1.0.0..." && \
 		docker build -f event-service/Dockerfile -t event-service:1.0.0 . \
+	)
+
+api-orchestrator-image: build-artifacts
+	@docker image inspect api-orchestrator:1.0.0 >$(NULL_DEV) 2>&1 && echo "Image api-orchestrator:1.0.0 already exists, skipping." || ( \
+		echo "Building api-orchestrator JAR on host..." && \
+		$(GRADLE) :api-orchestrator:clean :api-orchestrator:bootJar && \
+		echo "Building Docker image api-orchestrator:1.0.0..." && \
+		docker build -f api-orchestrator/Dockerfile -t api-orchestrator:1.0.0 . \
 	)
 
 device-collector-service-image:

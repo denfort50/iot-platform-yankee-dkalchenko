@@ -18,6 +18,14 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+	@ExceptionHandler(TargetVersionConflictException.class)
+	public ProblemDetail handleTargetVersionConflict(TargetVersionConflictException ex) {
+		log.warn("Target version conflict: {}", ex.getMessage());
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		detail.setProperty("code", "TARGET_VERSION_CONFLICT");
+		return detail;
+	}
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
 		Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()

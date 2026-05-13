@@ -11,6 +11,7 @@ import ru.dkalchenko.device.api.model.CreateResponse;
 import ru.dkalchenko.device.api.model.Device;
 import ru.dkalchenko.device.api.model.DeviceRequest;
 import ru.dkalchenko.device.api.model.MessageResponse;
+import ru.dkalchenko.device.api.model.TargetVersionRequest;
 import ru.dkalchenko.device.api.server.DevicesApiDelegate;
 import ru.dkalchenko.device.service.DeviceService;
 
@@ -39,6 +40,11 @@ public class DeviceController implements DevicesApiDelegate {
 		return deviceService.getDevice(deviceId)
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
+	}
+
+	@Override
+	public ResponseEntity<MessageResponse> setDeviceTargetVersion(String deviceId, TargetVersionRequest targetVersionRequest) {
+		return deviceService.setDeviceTargetVersion(deviceId, targetVersionRequest);
 	}
 
 	@Override

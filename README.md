@@ -5,33 +5,39 @@
 * **event-service** (read-only REST API для чтения событий устройств из ClickHouse)
 * **device-collector-service** (приём сообщений об устройствах из Kafka в шардированный PostgreSQL)
 * **device-service** (REST API управления устройствами: CRUD, шардированный PostgreSQL, Redis cache-aside, Kafka, Keycloak JWT)
+* **api-orchestrator** (Spring WebFlux: единый REST‑фасад к device-service, event-service и router-management-service; OpenFeign + gRPC; Resilience4j; сага обновления целевой версии ПО устройства с компенсацией)
 * **failed-events-processor** (обработка сообщений из Dead Letter Topic: парсинг, структурированный JSON и сохранение в MinIO)
 * **router-management-service** (Go: gRPC API регистрации роутеров, отправки команд, опроса и подтверждения; отдельная БД PostgreSQL; JWT через Keycloak; health/metrics и опционально OTLP)
 * **simple-event-sender** (генератор тестовых событий)
 
-Общие Avro-схемы и REST-контракты вынесены в:
+Общие Avro-схемы, REST/gRPC контракты и клиентские артефакты вынесены в:
 - **iot-avro-schemas**
-- **event-service-api**
 - **device-service-api**
+- **event-service-api**
+- **api-orchestrator-api** (OpenAPI оркестратора)
+- **router-management-api** (protobuf `api.v1`, генерация через Buf)
+- **router-manager-client** (Java/gRPC‑клиент для вызова router-management из JVM‑сервисов)
 
 ## Технологический стек
 
 - **Языки**: Java 24, Go 1.25+ (**router-management-service**)
 - **Backend‑фреймворки**: Spring Boot 3.5 (Web MVC, WebFlux, Security — JWT, OAuth2 Resource Server)
-- **Интеграция и клиентские библиотеки**: OpenFeign
+- **Интеграция и устойчивость**: Spring Cloud OpenFeign, Resilience4j (circuit breaker, retry), gRPC (Go‑сервер и Java‑клиент)
 - **Маппинг и удобство разработки**: MapStruct, Lombok, Springdoc OpenAPI
 - **Хранение данных**: PostgreSQL (в т.ч. шардированный через ShardingSphere для device-collector), ClickHouse, Redis, MinIO (S3‑совместимое объектное хранилище)
 - **Сообщения и очереди**: Kafka, Confluent Schema Registry
 - **Оркестрация и инфраструктура**: Docker Compose
-- **Безопасность и оркестрация процессов**: Keycloak, Camunda
+- **Безопасность и BPM**: Keycloak; Camunda (сервисы в `docker-compose` по умолчанию закомментированы — при необходимости включаются вручную)
 - **API (дополнительно)**: gRPC (**router-management-service**, protobuf `api.v1`)
 - **Наблюдаемость**: Spring Boot Actuator, Micrometer Prometheus, OpenTelemetry (OTLP), Grafana, Alloy, Prometheus, Tempo, Loki; Prometheus `/metrics` у **router-management-service**
 - **Тестирование и окружения**: Testcontainers
+
 ---
 
 ## Содержание
 - [Архитектура](#архитектура)
 - [Состав репозитория](#состав-репозитория)
+- [API Orchestrator](#api-orchestrator)
 - [Router Management Service](#router-management-service)
 - [Быстрый старт](#быстрый-старт)
 - [Порты и сервисы](#порты-и-сервисы)
@@ -46,15 +52,20 @@
 | Уровень        | Файл                                                | Описание                                                                                   |
 |----------------|-----------------------------------------------------|--------------------------------------------------------------------------------------------|
 | **Context**    | [context.puml](diagrams/context.puml)               | Система в контексте: инженер, IoT-устройства, Kafka, Keycloak, Grafana, Camunda            |
-| **Container**  | [containers.puml](diagrams/containers.puml)         | Контейнеры: ECS, DCS, Device Service, Failed Events Processor, MinIO, Kafka, observability |
+| **Container**  | [containers.puml](diagrams/containers.puml)         | Контейнеры: ECS, DCS, Device Service, Api Orchestrator, Event Service, Failed Events Processor, Router Management, MinIO, Kafka, observability |
 | **Components** | [components_ecs.puml](diagrams/components_ecs.puml) | Events Collector: Event Listener, Deduplication, Outbox Processor, ClickHouse              |
 |                | [components_dcs.puml](diagrams/components_dcs.puml) | Device Collector: Device Listener, DLT Producer, ShardingSphere → PostgreSQL               |
 |                | [components_ds.puml](diagrams/components_ds.puml)   | Device Service: Device Controller, Redis Client, Device Changes Publisher                  |
 |                | [components_fep.puml](diagrams/components_fep.puml) | Failed Events Processor: DLQ Listener, DLQ Service, DLQ Repository → MinIO                 |
+|                | [components_ao.puml](diagrams/components_ao.puml)   | Api Orchestrator: прокси к device/event/router-management, сага обновления версии          |
 | **Sequence**   | [sequence_ecs.puml](diagrams/sequence_ecs.puml)     | Поток событий ECS: Kafka → дедупликация → ClickHouse → Outbox → Kafka                      |
 |                | [sequence_dcs.puml](diagrams/sequence_dcs.puml)     | Поток DCS: Kafka → устройство → PostgreSQL (или DLT при ошибке)                            |
 |                | [sequence_ds.puml](diagrams/sequence_ds.puml)       | Поток Device Service: CRUD → Redis/PostgreSQL → Kafka                                      |
 |                | [sequence_fep.puml](diagrams/sequence_fep.puml)     | Поток FEP: DLQ → парсинг → сохранение в MinIO                                              |
+|                | [sequence_ao_device.puml](diagrams/sequence_ao_device.puml) | Оркестратор: запросы к Device Service                                                |
+|                | [sequence_ao_event.puml](diagrams/sequence_ao_event.puml) | Оркестратор: запросы к Event Service                                                    |
+|                | [sequence_ao_router_management.puml](diagrams/sequence_ao_router_management.puml) | Оркестратор: gRPC к Router Management                              |
+|                | [sequence_ao_compensation.puml](diagrams/sequence_ao_compensation.puml) | Сага обновления версии ПО: компенсация при ошибке роутера                        |
 
 Рендерить можно любым PlantUML‑совместимым плагином/CI, файлы используют библиотеку **C4‑PlantUML** (включение по URL).
 
@@ -69,10 +80,15 @@ iot-platform-yankee-dkalchenko/
 │  ├─ components_dcs.puml             # Компоненты Device Collector Service
 │  ├─ components_ds.puml              # Компоненты Device Service
 │  ├─ components_fep.puml             # Компоненты Failed Events Processor
+│  ├─ components_ao.puml              # Компоненты Api Orchestrator
 │  ├─ sequence_ecs.puml               # Последовательности ECS
 │  ├─ sequence_dcs.puml               # Последовательности DCS
 │  ├─ sequence_ds.puml                # Последовательности Device Service
-│  └─ sequence_fep.puml               # Последовательности Failed Events Processor (DLQ → MinIO)
+│  ├─ sequence_fep.puml               # Последовательности Failed Events Processor (DLQ → MinIO)
+│  ├─ sequence_ao_device.puml         # Оркестратор → Device Service
+│  ├─ sequence_ao_event.puml          # Оркестратор → Event Service
+│  ├─ sequence_ao_router_management.puml
+│  └─ sequence_ao_compensation.puml   # Сага: компенсация
 ├─ iot-avro-schemas/                  # Общие Avro‑схемы (DeviceInfo, DeviceEvent, DeadLetterMessage, DeviceAuditEvent)
 │  ├─ src/main/resources/avro/
 │  └─ README.md
@@ -81,6 +97,13 @@ iot-platform-yankee-dkalchenko/
 │  └─ README.md
 ├─ event-service-api/                # OpenAPI‑спецификация REST API Event Service (events read API)
 │  └─ src/main/resources/openapi/event-api.yaml
+├─ api-orchestrator-api/             # OpenAPI фасадного оркестратора (публикация артефактов в Nexus)
+│  └─ src/main/resources/openapi/orchestrator-api.yaml
+├─ router-management-api/             # gRPC контракт Router Management (protobuf, Buf)
+│  ├─ api/v1/router_management.proto
+│  └─ README.md
+├─ router-manager-client/            # Java/gRPC клиент (публикация в Nexus)
+│  └─ README.md
 ├─ device-service/                   # REST API управления устройствами (CRUD, Kafka, шарды, Redis, Keycloak)
 │  ├─ src/main/java/ru/dkalchenko/device/...
 │  ├─ src/main/resources/
@@ -97,6 +120,15 @@ iot-platform-yankee-dkalchenko/
 │  │  ├─ application-local.yaml
 │  │  └─ application-docker.yaml
 │  ├─ Dockerfile
+│  └─ README.md
+├─ api-orchestrator/                  # WebFlux фасад: Feign → device/event, gRPC → router-management; сага версии ПО
+│  ├─ src/main/java/ru/dkalchenko/orchestrator/...
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml
+│  │  ├─ application-local.yaml
+│  │  └─ application-docker.yaml
+│  ├─ Dockerfile
+│  ├─ img/                            # Скриншоты трассировки / дашборда
 │  └─ README.md
 ├─ device-collector-service/          # Сервис приёма сообщений об устройствах из Kafka → PostgreSQL (шарды)
 │  ├─ src/main/java/ru/dkalchenko/device/collector/...
@@ -134,7 +166,7 @@ iot-platform-yankee-dkalchenko/
 │  ├─ Dockerfile
 │  └─ README.md
 ├─ router-management-service/        # Go: gRPC управление роутерами (PostgreSQL, Keycloak JWT, scheduler)
-│  ├─ api/proto/api/v1/              # router_management.proto и сгенерированный Go-код
+│  ├─ api/proto/api/v1/              # сгенерированный Go-код из router-management-api
 │  ├─ cmd/server/
 │  ├─ internal/                      # config, repository, service, grpc handler, auth, telemetry, metrics
 │  ├─ integration/                   # интеграционные тесты (Testcontainers)
@@ -144,6 +176,7 @@ iot-platform-yankee-dkalchenko/
 │  ├─ router-management-load-test.jmx
 │  ├─ run-jmeter.ps1
 │  └─ run-jmeter.sh
+├─ postman/                          # Postman-коллекции (в т.ч. api-orchestrator, event-service)
 ├─ infrastructure/                    # Инфраструктура: observability, БД, nginx (LB)
 │  ├─ alloy/config.alloy
 │  ├─ grafana/provisioning/{datasources,dashboards}
@@ -154,16 +187,26 @@ iot-platform-yankee-dkalchenko/
 │  └─ ...
 ├─ build.gradle.kts                   # Корневой Gradle‑конфиг (мультипроект)
 ├─ settings.gradle.kts                # Настройка модулей Gradle
-├─ Makefile                           # Сценарии: all, module-five, module-six, stop, clean, *-image
+├─ Makefile                           # Сценарии: all, module-six, infra*, stop, clean, *-image
 └─ README.md
 ```
 
 ---
+## API Orchestrator
+
+**api-orchestrator** — точка входа для клиентских приложений: REST поверх **Spring WebFlux**, вызовы в **device-service** и **event-service** через **OpenFeign** (с пробросом JWT), в **router-management-service** — по **gRPC**. Для устойчивости к сбоям upstream используется **Resilience4j**. Сценарий **обновления целевой версии ПО** устройства реализован как сага с компенсацией при ошибке команды роутеру.
+
+- Контракт HTTP: [`api-orchestrator-api/.../orchestrator-api.yaml`](api-orchestrator-api/src/main/resources/openapi/orchestrator-api.yaml)
+- Документация модуля, переменные окружения, сборка образа и порты: [`api-orchestrator/README.md`](api-orchestrator/README.md)
+- Примеры запросов: [`postman/api-orchestrator.postman_collection.json`](postman/api-orchestrator.postman_collection.json)
+
+---
 ## Router Management Service
 
-Отдельный модуль на **Go** с **gRPC** API (`RouterManagementService`): регистрация роутера, отправка команд одному или всем зарегистрированным роутерам, опрос очереди команд и подтверждение выполнения. Данные — в выделенном **PostgreSQL** (`router-management-postgres` в Compose). Аутентификация — **JWT** по issuer Keycloak (как и у остальной платформы). В том же процессе поднимается HTTP (**Gin**): `/health`, `/ready`, `/metrics` (Prometheus); при настройке OTLP — трейсы в **Alloy/Tempo**.
+Отдельный модуль на **Go** с **gRPC** API (`RouterManagementService`, исходный контракт в **`router-management-api`**): регистрация роутера, отправка команд одному или всем зарегистрированным роутерам, опрос очереди команд и подтверждение выполнения. Данные — в выделенном **PostgreSQL** (`router-management-postgres` в Compose). Аутентификация — **JWT** по issuer Keycloak (как и у остальной платформы). В том же процессе поднимается HTTP (**Gin**): `/health`, `/ready`, `/metrics` (Prometheus); при настройке OTLP — трейсы в **Alloy/Tempo**.
 
 - Подробная документация, переменные окружения, сборка и тесты: [`router-management-service/README.md`](router-management-service/README.md).
+- Контракт и Buf: [`router-management-api/README.md`](router-management-api/README.md).
 
 ---
 ## Быстрый старт
@@ -172,7 +215,7 @@ iot-platform-yankee-dkalchenko/
 ### Вариант A — через `Makefile` (рекомендуется)
 
 ```bash
-# Полный запуск: поднимает Kafka, Schema Registry, Nexus → собирает iot-avro-schemas, device-service-api и event-service-api → поднимает все контейнеры
+# Полный запуск: поднимает Kafka, Schema Registry, Nexus → публикует артефакты (iot-avro-schemas, device-service-api, event-service-api, api-orchestrator-api, router-management-api, router-manager-client) в Nexus → собирает образы приложений → поднимает все контейнеры
 make all
 ```
 
@@ -206,13 +249,15 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 ---
 ## Порты и сервисы
 
+Типовые пробросы портов на хост из `infrastructure/docker-compose.yaml`. Сервисы **Camunda** и связанные с ними контейнеры в compose по умолчанию **закомментированы** — строки ниже про Camunda относятся к опциональной конфигурации.
+
 | Сервис                               | Порт (host)      | Описание                                   |
 |--------------------------------------|------------------|--------------------------------------------|
 | Postgres Shard 0 (device-collector)  | 5436             | Контейнер `postgres-shard0`                |
 | Postgres Shard 1 (device-collector)  | 5437             | Контейнер `postgres-shard1`                |
 | Postgres Shard 2 (device-collector)  | 5438             | Контейнер `postgres-shard2`                |
 | Postgres (keycloak)                  | 5433             | Контейнер `keycloak-postgres`              |
-| Postgres (camunda)                   | 5435             | Контейнер `camunda-postgres`               |
+| Postgres (camunda)                   | 5435             | Контейнер `camunda-postgres` (опционально, в compose отключён) |
 | ClickHouse                           | 8123             | Хранилище телеметрии                       |
 | Redis                                | 6379             | Кэш и in-memory хранилище                  |
 | Redis Insight                        | 5540             | Визуальный интерфейс Redis                 |
@@ -222,10 +267,10 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Kafka UI                             | 8070             | Визуальный интерфейс Kafka                 |
 | Nexus                                | 8082             | Maven-репозиторий (iot-avro-schemas и др.) |
 | MinIO                                | 9001, 9002       | S3-совместимое хранилище + консоль         |
-| Camunda                              | 8088             | Workflow и BPM движок                      |
+| Camunda                              | 8088             | Workflow и BPM (опционально, в compose отключён) |
 | Postgres Exporter (shard 0/1/2)      | 9188, 9191, 9192 | Метрики PostgreSQL шардов                  |
 | Postgres Exporter (keycloak)         | 9189             | Метрики Keycloak Postgres                  |
-| Postgres Exporter (camunda)          | 9190             | Метрики Camunda Postgres                   |
+| Postgres Exporter (camunda)          | 9190             | Метрики Camunda Postgres (опционально)     |
 | Kafka Exporter                       | 9308             | Метрики Kafka                              |
 | Prometheus                           | 9090             | Сбор метрик                                |
 | Alloy                                | 9080             | OTel-коллектор (трассировки, метрики)      |
@@ -237,6 +282,7 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 | Device Collector Service             | 8096             | Приём устройств из Kafka → PostgreSQL      |
 | Events Collector Service             | 8093–8095        | Сбор событий (Outbox → Kafka, ClickHouse)  |
 | Event Service                        | 8100, 9081       | Read-only API событий из ClickHouse (API, actuator) |
+| API Orchestrator                     | 8101, 9082       | REST фасад к device/event/router-management (API, actuator) |
 | Simple Event Sender                  | 8092             | REST API генерации тестовых событий        |
 | Failed Events Processor              | 8098, 9078       | Обработка DLT → JSON в MinIO (API, actuator) |
 | Router Management Service (gRPC)    | 50051            | Контейнер `router-management-service`      |
@@ -247,9 +293,10 @@ docker compose -f infrastructure/docker-compose.yaml down -v
 ## Наблюдаемость
 
 * **Prometheus**: `http://localhost:9090`
-* **Grafana**: `http://localhost:3000` (grafana_user/grafana_password). Датасорсы Prometheus/Loki/Tempo провиженятся из `grafana/provisioning`.
+* **Grafana**: `http://localhost:3000` (grafana_user/grafana_password). Датасорсы Prometheus/Loki/Tempo провиженятся из `grafana/provisioning`. Готовые дашборды лежат в `infrastructure/grafana/dashboards/` (в т.ч. для **api-orchestrator**).
 * **Трассировки**: отправляются по OTLP HTTP в `Tempo` (порт 4318), смотрятся в Grafana -> Explore -> Tempo.
 * **Логи**: Loki развёрнут.
+
 ---
 
 ## Автор

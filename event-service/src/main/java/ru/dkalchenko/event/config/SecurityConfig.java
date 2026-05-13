@@ -18,9 +18,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+	/** Micrometer: без спанов filter chain / authorize / secured request и т.п. */
 	@Bean
 	public SecurityObservationSettings securityObservationSettings() {
-		return SecurityObservationSettings.withDefaults().build();
+		return SecurityObservationSettings.noObservations();
 	}
 
 	@Bean

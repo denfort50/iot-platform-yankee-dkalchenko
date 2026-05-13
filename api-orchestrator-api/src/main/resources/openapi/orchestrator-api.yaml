@@ -1,0 +1,778 @@
+openapi: 3.0.3
+info:
+  title: API Orchestrator API
+  version: 1.0.0
+  description: |
+    REST API фасадного оркестратора.
+    Оркестратор проксирует вызовы в upstream сервисы устройств, событий и router-management-service,
+    а также реализует бизнес-сценарии (например, сагу обновления версии устройства).
+servers:
+  - url: /
+tags:
+  - name: Commands
+    description: Проксирование команд и lifecycle команд роутеров через router-management-service.
+  - name: Routers
+    description: Операции регистрации роутеров через router-management-service.
+  - name: Devices
+    description: CRUD и бизнес-операции с устройствами через device-service.
+  - name: Events
+    description: Поиск и чтение событий устройств через event-service.
+paths:
+  /commands:
+    post:
+      operationId: sendCommand
+      summary: Отправить команду роутеру
+      description: |
+        Проксирует gRPC-метод SendCommand сервиса router-management-service.
+        При пустом routerId команда отправляется всем зарегистрированным роутерам.
+      tags:
+        - Commands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendCommandRequestBody'
+      responses:
+        '200':
+          description: Команда(ы) успешно создана(ы) в router-management-service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendCommandResponseBody'
+        '400':
+          description: Невалидный payload или идентификаторы
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                invalidInput:
+                  summary: Невалидный routerId
+                  value:
+                    type: about:blank
+                    title: Bad Request
+                    status: 400
+                    detail: routerId must be a valid UUID
+        '404':
+          description: Роутер не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                routerNotFound:
+                  summary: Роутер отсутствует
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    detail: router not found
+  /commands/poll:
+    post:
+      operationId: pollCommands
+      summary: Получить очередь команд роутера
+      description: |
+        Проксирует gRPC-метод CommandsPoll.
+        Возвращает команды роутера в статусах PENDING/SENT.
+      tags:
+        - Commands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandsPollRequestBody'
+      responses:
+        '200':
+          description: Очередь команд получена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandsPollResponseBody'
+        '400':
+          description: Невалидный routerId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                invalidRouterId:
+                  value:
+                    type: about:blank
+                    title: Bad Request
+                    status: 400
+                    detail: invalid router_id
+        '404':
+          description: Роутер не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                routerNotFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    detail: router not found
+  /commands/ack:
+    post:
+      operationId: ackCommand
+      summary: Подтвердить выполнение команды роутером
+      description: |
+        Проксирует gRPC-метод CommandsAck.
+        Подтверждает факт обработки конкретной команды конкретным роутером.
+      tags:
+        - Commands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandsAckRequestBody'
+      responses:
+        '200':
+          description: Подтверждение принято
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandsAckResponseBody'
+        '400':
+          description: Невалидный routerId или commandId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                invalidIds:
+                  value:
+                    type: about:blank
+                    title: Bad Request
+                    status: 400
+                    detail: invalid command_id
+        '404':
+          description: Роутер или команда не найдены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                entityNotFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    detail: router not found
+  /routers/register:
+    post:
+      operationId: registerRouter
+      summary: Зарегистрировать роутер
+      description: |
+        Проксирует gRPC-метод RegisterRouter сервиса router-management-service.
+        Возвращает сгенерированный routerId.
+      tags:
+        - Routers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRouterRequestBody'
+      responses:
+        '200':
+          description: Роутер зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterRouterResponseBody'
+        '400':
+          description: Некорректные параметры регистрации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                invalidRegistration:
+                  value:
+                    type: about:blank
+                    title: Bad Request
+                    status: 400
+                    detail: inventory_number is required
+  /devices:
+    post:
+      operationId: createDevice
+      summary: Создать устройство
+      description: Создаёт устройство через device-service.
+      tags:
+        - Devices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRequest'
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateResponse'
+        '400':
+          description: Невалидный запрос на создание устройства
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                invalidDevice:
+                  value:
+                    type: about:blank
+                    title: Bad Request
+                    status: 400
+                    detail: deviceType must not be blank
+  /devices/{deviceId}:
+    get:
+      operationId: getDevice
+      summary: Получить устройство по идентификатору
+      description: Возвращает карточку устройства из device-service.
+      tags:
+        - Devices
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          description: Идентификатор устройства.
+          schema:
+            type: string
+            example: "device-42"
+      responses:
+        '200':
+          description: Устройство найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                deviceNotFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    detail: Device not found
+    put:
+      operationId: updateDevice
+      summary: Обновить устройство
+      description: Обновляет тип и/или метаданные устройства через device-service.
+      tags:
+        - Devices
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          description: Идентификатор устройства.
+          schema:
+            type: string
+            example: "device-42"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRequest'
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Невалидный запрос на обновление устройства
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    delete:
+      operationId: deleteDevice
+      summary: Удалить устройство
+      description: Удаляет устройство через device-service.
+      tags:
+        - Devices
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          description: Идентификатор устройства.
+          schema:
+            type: string
+            example: "device-42"
+      responses:
+        '202':
+          description: Запрос принят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /devices/{deviceId}/version:
+    put:
+      operationId: updateTargetVersion
+      summary: Обновить целевую версию ПО устройства
+      description: |
+        Запускает оркестрируемый сценарий обновления версии устройства.
+        Включает команду в router-management-service и компенсацию при ошибках.
+      tags:
+        - Devices
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          description: Идентификатор устройства.
+          schema:
+            type: string
+            example: "device-42"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceVersionUpdateRequest'
+      responses:
+        '200':
+          description: Версия обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionUpdateResult'
+        '502':
+          description: Выполнена компенсация после ошибки роутера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionUpdateResult'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                deviceNotFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    detail: Device not found
+        '409':
+          description: Конфликт upstream операции
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                upstreamConflict:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    detail: Upstream conflict
+  /events:
+    get:
+      operationId: listEvents
+      summary: Получить список событий устройства
+      description: Возвращает отфильтрованный и постраничный список событий из event-service.
+      tags:
+        - Events
+      parameters:
+        - in: query
+          name: deviceId
+          required: true
+          description: Идентификатор устройства, для которого запрашиваются события.
+          schema:
+            type: string
+            example: "device-42"
+        - in: query
+          name: fromTimestamp
+          description: Нижняя граница времени события (Unix epoch millis, включительно).
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: toTimestamp
+          description: Верхняя граница времени события (Unix epoch millis, включительно).
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: type
+          description: Фильтр по типу события.
+          schema:
+            type: string
+            example: telemetry
+        - in: query
+          name: page
+          description: Номер страницы (0-based).
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          description: Размер страницы.
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Список событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+  /events/{eventId}:
+    get:
+      operationId: getEventById
+      summary: Получить событие по идентификатору
+      description: Возвращает одно событие устройства из event-service.
+      tags:
+        - Events
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          description: Идентификатор события.
+          schema:
+            type: string
+            example: "event-100"
+        - in: query
+          name: deviceId
+          required: true
+          description: Идентификатор устройства.
+          schema:
+            type: string
+            example: "device-42"
+      responses:
+        '200':
+          description: Событие найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Событие не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+components:
+  schemas:
+    SendCommandRequestBody:
+      description: Запрос на создание команды для одного или всех роутеров.
+      type: object
+      required:
+        - commandType
+      properties:
+        routerId:
+          type: string
+          description: UUID роутера. Если не задан, команда создаётся для всех роутеров.
+          example: "2f8d92de-0d3c-4e4f-9557-f1f06e5fa6d8"
+        commandType:
+          type: string
+          description: Тип команды (например, PING, REBOOT, DEVICE_FIRMWARE_UPDATE).
+          example: PING
+        payload:
+          type: string
+          description: JSON-строка с параметрами команды.
+    SendCommandResponseBody:
+      description: Результат создания команды(команд).
+      type: object
+      properties:
+        commandIds:
+          type: array
+          description: Список идентификаторов созданных команд.
+          example:
+            - cmd-1
+            - cmd-2
+          items:
+            type: string
+    CommandsPollRequestBody:
+      description: Запрос очереди команд роутера.
+      type: object
+      required:
+        - routerId
+      properties:
+        routerId:
+          type: string
+          description: UUID роутера.
+          example: "2f8d92de-0d3c-4e4f-9557-f1f06e5fa6d8"
+    CommandMessage:
+      description: Команда, ожидающая обработки роутером.
+      type: object
+      properties:
+        commandId:
+          type: string
+          description: Идентификатор команды.
+          example: cmd-1
+        commandType:
+          type: string
+          description: Тип команды.
+          example: PING
+        payload:
+          type: string
+          description: JSON-строка с payload команды.
+        status:
+          type: string
+          description: Текущий статус команды (PENDING, SENT).
+          example: PENDING
+    CommandsPollResponseBody:
+      description: Список команд, доступных роутеру.
+      type: object
+      properties:
+        commands:
+          type: array
+          description: Очередь команд роутера.
+          items:
+            $ref: '#/components/schemas/CommandMessage'
+    CommandsAckRequestBody:
+      description: Запрос подтверждения выполнения команды.
+      type: object
+      required:
+        - routerId
+        - commandId
+      properties:
+        routerId:
+          type: string
+          description: UUID роутера.
+        commandId:
+          type: string
+          description: Идентификатор подтверждаемой команды.
+    CommandsAckResponseBody:
+      description: Результат подтверждения команды.
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: true, если подтверждение принято.
+          example: true
+    RegisterRouterRequestBody:
+      description: Данные для регистрации нового роутера.
+      type: object
+      required:
+        - inventoryNumber
+        - name
+      properties:
+        inventoryNumber:
+          type: string
+          description: Инвентарный номер роутера (уникальный).
+          example: inv-100500
+        name:
+          type: string
+          description: Отображаемое имя роутера.
+          example: Main Router
+        model:
+          type: string
+          description: Модель роутера.
+          nullable: true
+          example: RTX-1
+        location:
+          type: string
+          description: Локация установки роутера.
+          nullable: true
+          example: HQ-1
+    RegisterRouterResponseBody:
+      description: Результат регистрации роутера.
+      type: object
+      properties:
+        routerId:
+          type: string
+          description: Сгенерированный UUID роутера.
+          example: "2f8d92de-0d3c-4e4f-9557-f1f06e5fa6d8"
+    DeviceRequest:
+      description: Запрос на создание или обновление устройства.
+      type: object
+      required:
+        - deviceType
+      properties:
+        deviceType:
+          type: string
+          description: Тип устройства.
+          example: thermostat
+        meta:
+          type: string
+          description: Произвольные метаданные в JSON-строке.
+          nullable: true
+    Device:
+      description: Представление устройства.
+      type: object
+      properties:
+        deviceId:
+          type: string
+          description: Идентификатор устройства.
+          example: device-42
+        deviceType:
+          type: string
+          description: Тип устройства.
+          example: thermostat
+        createdAt:
+          type: integer
+          format: int64
+          description: Время создания (Unix epoch millis).
+          example: 1730209285000
+        meta:
+          type: string
+          description: Метаданные устройства.
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: Время последнего обновления (ISO-8601).
+          example: "2026-05-11T11:00:00Z"
+        targetSoftwareVersion:
+          type: string
+          description: Целевая версия ПО устройства.
+          nullable: true
+          example: "1.2.3"
+    CreateResponse:
+      description: Ответ на асинхронное создание ресурса.
+      type: object
+      properties:
+        message:
+          type: string
+          description: Текстовый статус операции.
+          example: accepted
+        deviceId:
+          type: string
+          description: Идентификатор устройства.
+          example: device-42
+    MessageResponse:
+      description: Унифицированный ответ с сообщением по устройству.
+      type: object
+      properties:
+        message:
+          type: string
+          description: Текстовый статус операции.
+          example: accepted
+        deviceId:
+          type: string
+          description: Идентификатор устройства.
+          example: device-42
+    DeviceVersionUpdateRequest:
+      description: Запрос обновления целевой версии ПО устройства.
+      type: object
+      required:
+        - targetVersion
+        - routerId
+      properties:
+        targetVersion:
+          type: string
+          description: Целевая версия ПО.
+          example: "1.2.3"
+        routerId:
+          type: string
+          description: UUID роутера, через который доставляется команда обновления.
+          example: "2f8d92de-0d3c-4e4f-9557-f1f06e5fa6d8"
+        idempotencyKey:
+          type: string
+          description: Ключ идемпотентности для защиты от повторной обработки.
+          nullable: true
+          example: "9ce2f6e3-9714-4ca9-94b1-c5baec2d6c72"
+    VersionUpdateResult:
+      description: Результат оркестрированного обновления версии устройства.
+      type: object
+      properties:
+        compensated:
+          type: boolean
+          description: Признак выполнения компенсации.
+          example: false
+        message:
+          type: string
+          description: Детали результата операции.
+          example: version update completed
+        createdCommandIds:
+          type: array
+          description: Идентификаторы команд, созданных в router-management-service (пусто при компенсации).
+          items:
+            type: string
+          example: ["cmd-1"]
+    Event:
+      description: Событие устройства.
+      type: object
+      properties:
+        eventId:
+          type: string
+          description: Идентификатор события.
+          example: event-100
+        deviceId:
+          type: string
+          description: Идентификатор устройства.
+          example: device-42
+        timestamp:
+          type: integer
+          format: int64
+          description: Время события (Unix epoch millis).
+          example: 1730209285000
+        type:
+          type: string
+          description: Тип события.
+          example: telemetry
+        payload:
+          type: string
+          description: Тело события (JSON-строка).
+    EventPage:
+      description: Страница событий.
+      type: object
+      properties:
+        events:
+          type: array
+          description: События на текущей странице.
+          items:
+            $ref: '#/components/schemas/Event'
+        page:
+          type: integer
+          description: Номер страницы (0-based).
+          example: 0
+        size:
+          type: integer
+          description: Размер страницы.
+          example: 100
+        total:
+          type: integer
+          format: int64
+          description: Общее количество событий.
+          example: 245
+    ProblemDetails:
+      description: Стандартизованное описание ошибки (RFC 7807).
+      type: object
+      properties:
+        type:
+          type: string
+          description: URI типа ошибки.
+          example: about:blank
+        title:
+          type: string
+          description: Краткий заголовок ошибки.
+          example: Bad Request
+        status:
+          type: integer
+          description: HTTP-статус.
+          example: 400
+        detail:
+          type: string
+          description: Подробности ошибки.
+          example: Validation failed
+        instance:
+          type: string
+          description: URI конкретного экземпляра ошибки.
+          example: /commands

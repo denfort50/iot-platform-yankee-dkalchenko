@@ -1,7 +1,8 @@
 val versions = mapOf(
 	"springCloudDependenciesVersion" to "2025.0.0",
 	"clickhouseVersion" to "0.9.6",
-	"lz4Version" to "1.10.2"
+	"lz4Version" to "1.10.2",
+	"eventServiceApiVersion" to "1.0.0"
 )
 
 plugins {
@@ -112,12 +113,17 @@ tasks.bootRun {
 	)
 }
 
-val openApiSpecPath = rootProject.projectDir.resolve("event-service-api/src/main/resources/openapi/event-api.yaml").absolutePath
 val openApiOutputDir = file("build/generated/sources/openapi/server")
+val extractEventApiSpec by tasks.registering(Copy::class) {
+	dependsOn(":event-service-api:processResources")
+	from(project(":event-service-api").layout.projectDirectory.file("src/main/resources/openapi/event-api.yaml"))
+	rename { "event-api.yaml" }
+	into(layout.buildDirectory.dir("openapi-spec/event-service-api"))
+}
 
 openApiGenerate {
 	generatorName.set("spring")
-	inputSpec.set(openApiSpecPath)
+	inputSpec.set(layout.buildDirectory.file("openapi-spec/event-service-api/event-api.yaml").map { it.asFile.absolutePath })
 	outputDir.set(openApiOutputDir.absolutePath)
 	apiPackage.set("ru.dkalchenko.event.api.server")
 	modelPackage.set("ru.dkalchenko.event.api.model")
@@ -144,6 +150,9 @@ openApiGenerate {
 			"EventPage" to "ru.dkalchenko.event.api.model.EventPage"
 		)
 	)
+}
+tasks.named("openApiGenerate") {
+	dependsOn(extractEventApiSpec)
 }
 
 sourceSets["main"].java.srcDir("${openApiOutputDir}/src/main/java")

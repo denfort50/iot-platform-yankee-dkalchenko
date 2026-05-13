@@ -80,6 +80,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+  /devices/{deviceId}/version:
+    put:
+      operationId: setDeviceTargetVersion
+      summary: Зафиксировать целевую версию ПО устройства
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TargetVersionRequest'
+      responses:
+        '202':
+          description: Целевая версия принята
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Устройство не найдено
+        '409':
+          description: Конфликт (идемпотентность или несовместимая операция)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
 
 components:
   schemas:
@@ -112,6 +143,29 @@ components:
         updatedAt:
           type: string
           format: date-time
+        targetSoftwareVersion:
+          type: string
+          nullable: true
+          description: Целевая версия ПО (если задана)
+    TargetVersionRequest:
+      type: object
+      required:
+        - targetVersion
+      properties:
+        targetVersion:
+          type: string
+          description: Целевая версия прошивки/ПО
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: Ключ идемпотентности операции
+    ConflictError:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
     CreateResponse:
       type: object
       properties:

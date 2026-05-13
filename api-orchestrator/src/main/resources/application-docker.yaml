@@ -1,0 +1,27 @@
+# Docker: хосты из docker-compose, приложение на 8080, actuator на 9090.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+clients:
+  device-service:
+    url: ${DEVICE_SERVICE_URL}
+  event-service:
+    url: ${EVENT_SERVICE_URL}
+  router-management:
+    host: ${ROUTER_MANAGEMENT_GRPC_HOST}
+    port: ${ROUTER_MANAGEMENT_GRPC_PORT}
+
+management:
+  server:
+    port: 9090
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}

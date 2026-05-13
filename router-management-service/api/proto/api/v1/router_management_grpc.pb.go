@@ -5,7 +5,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v7.34.0
-// source: api/proto/api/v1/router_management.proto
+// source: api/v1/router_management.proto
 
 package apiv1
 
@@ -228,5 +228,5 @@ var RouterManagementService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/api/v1/router_management.proto",
+	Metadata: "api/v1/router_management.proto",
 }

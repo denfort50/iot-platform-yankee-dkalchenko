@@ -5,9 +5,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import ru.dkalchenko.device.api.model.Device;
 import ru.dkalchenko.device.api.model.DeviceRequest;
 import ru.dkalchenko.device.audit.DeviceAuditService;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -52,21 +54,26 @@ class DeviceServiceTest {
 	DeviceAuditService deviceAuditService;
 	@Mock
 	AuditContextProvider auditContextProvider;
+	@Mock
+	StringRedisTemplate redisTemplate;
+	@Mock
+	ValueOperations<String, String> valueOperations;
 
 	DeviceServiceMetrics metrics;
-	@InjectMocks
 	DeviceService deviceService;
 
 	@BeforeEach
 	void setUp() {
 		metrics = new DeviceServiceMetrics(new SimpleMeterRegistry());
+		lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 		deviceService = new DeviceService(
 				deviceRepository,
 				deviceCache,
 				devicePublisher,
 				metrics,
 				deviceAuditService,
-				auditContextProvider
+				auditContextProvider,
+				redisTemplate
 		);
 	}
 

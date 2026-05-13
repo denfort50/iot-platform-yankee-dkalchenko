@@ -1,0 +1,524 @@
+{
+  "info": {
+    "_postman_id": "6c44bbdd-0693-4dfb-9759-eb8edfccc68a",
+    "name": "api-orchestrator",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "48910547",
+    "_collection_link": "https://go.postman.co/collection/48910547-6c44bbdd-0693-4dfb-9759-eb8edfccc68a?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "0) Получить токен тестового пользователя",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has tokens', function () {\r",
+              "  pm.expect(json).to.have.property('access_token');\r",
+              "  pm.expect(json).to.have.property('refresh_token');\r",
+              "});\r",
+              "if (json && json.access_token) pm.collectionVariables.set('access_token', json.access_token);\r",
+              "if (json && json.refresh_token) pm.collectionVariables.set('refresh_token', json.refresh_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "grant_type=password&client_id=admin-cli&username=device-api-user&password=device-api-password",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{keycloak_url}}/realms/master/protocol/openid-connect/token",
+          "host": [
+            "{{keycloak_url}}"
+          ],
+          "path": [
+            "realms",
+            "master",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "1) Создать устройство",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('202 Accepted', function () { pm.response.to.have.status(202); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has deviceId', function () {\r",
+              "  pm.expect(json).to.have.property('deviceId');\r",
+              "});\r",
+              "if (json && json.deviceId) pm.collectionVariables.set('deviceId', json.deviceId);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"deviceType\": \"something-two\",\r\n  \"meta\": \"new test device\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/devices",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "devices"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2) Прочитать устройство",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_orchestrator_url}}/devices/{{deviceId}}",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3) Обновить устройство",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"deviceType\": \"electro\",\r\n  \"meta\": \"any meta info\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/devices/{{deviceId}}",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4) Удалить устройство",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_orchestrator_url}}/devices/{{deviceId}}",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "devices",
+            "{{deviceId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5) Получить список событий устройства",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_orchestrator_url}}/events?deviceId={{deviceId}}&page=0&size=100",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "events"
+          ],
+          "query": [
+            {
+              "key": "deviceId",
+              "value": "{{deviceId}}"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "100"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6) Получить событие по id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_orchestrator_url}}/events/{{eventId}}?deviceId={{deviceId}}",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "events",
+            "{{eventId}}"
+          ],
+          "query": [
+            {
+              "key": "deviceId",
+              "value": "{{deviceId}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7) Зарегистрировать роутер",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has routerId', function () {\r",
+              "  pm.expect(json).to.have.property('routerId');\r",
+              "});\r",
+              "if (json && json.routerId) pm.collectionVariables.set('routerId', json.routerId);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"inventoryNumber\": \"inv-postman-001\",\r\n  \"name\": \"Postman Router\",\r\n  \"model\": \"RTX-1\",\r\n  \"location\": \"Lab-1\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/routers/register",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "routers",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8) Отправить команду роутеру",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });\r",
+              "let json = {}; try { json = pm.response.json(); } catch (e) {}\r",
+              "pm.test('Response has commandIds', function () {\r",
+              "  pm.expect(json).to.have.property('commandIds');\r",
+              "});\r",
+              "if (json && Array.isArray(json.commandIds) && json.commandIds.length > 0) pm.collectionVariables.set('commandId', json.commandIds[0]);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"routerId\": \"{{routerId}}\",\r\n  \"commandType\": \"PING\",\r\n  \"payload\": \"{}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/commands",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "commands"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "9) Получить очередь команд роутера",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"routerId\": \"{{routerId}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/commands/poll",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "commands",
+            "poll"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10) Подтвердить выполнение команды роутером",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"routerId\": \"{{routerId}}\",\r\n  \"commandId\": \"{{commandId}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/commands/ack",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "commands",
+            "ack"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "11) Обновить целевую версию устройства",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"targetVersion\": \"1.1.0\",\r\n  \"routerId\": \"28c2a2a0-8169-4d06-b75d-d503321ca0bd\",\r\n  \"idempotencyKey\": \"update-version-111\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{api_orchestrator_url}}/devices/{{deviceId}}/version",
+          "host": [
+            "{{api_orchestrator_url}}"
+          ],
+          "path": [
+            "devices",
+            "{{deviceId}}",
+            "version"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "api_orchestrator_url",
+      "value": ""
+    },
+    {
+      "key": "keycloak_url",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "deviceId",
+      "value": ""
+    },
+    {
+      "key": "eventId",
+      "value": ""
+    },
+    {
+      "key": "routerId",
+      "value": ""
+    },
+    {
+      "key": "commandId",
+      "value": ""
+    }
+  ]
+}

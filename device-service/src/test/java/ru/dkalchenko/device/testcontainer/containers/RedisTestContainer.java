@@ -8,7 +8,7 @@ import ru.dkalchenko.device.testcontainer.config.TestContainersConfig;
 @UtilityClass
 public class RedisTestContainer {
 
-	private static final String IMAGE = "redis:7-alpine";
+	private static final String IMAGE = "redis:8.4.0-alpine";
 
 	public static final GenericContainer<?> INSTANCE = new GenericContainer<>(DockerImageName.parse(IMAGE))
 			.withNetwork(TestContainersConfig.NETWORK)

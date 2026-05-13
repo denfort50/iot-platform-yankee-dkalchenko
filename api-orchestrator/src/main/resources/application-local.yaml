@@ -1,0 +1,29 @@
+server:
+  port: 8099
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/master
+
+clients:
+  device-service:
+    url: http://localhost:8090/v1
+  event-service:
+    url: http://localhost:8098
+  router-management:
+    host: localhost
+    port: 50051
+
+management:
+  server:
+    port: 9079
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

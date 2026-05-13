@@ -78,10 +78,6 @@ dependencies {
 	implementation("jakarta.validation:jakarta.validation-api:${versions["validationApiVersion"]}")
 }
 
-tasks.named("build") {
-	dependsOn(tasks["publish"])
-}
-
 val nexusUrl: String = project.findProperty("nexus.url") as String? ?: System.getenv("NEXUS_URL") ?: "http://localhost:8082/repository/maven-releases/"
 val nexusUser: String = project.findProperty("nexus.user") as String? ?: System.getenv("NEXUS_USER") ?: "admin"
 val nexusPassword: String = project.findProperty("nexus.password") as String? ?: System.getenv("NEXUS_PASSWORD") ?: "admin"

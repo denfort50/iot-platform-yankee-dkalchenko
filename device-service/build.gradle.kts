@@ -49,8 +49,8 @@ dependencyManagement {
 }
 
 dependencies {
-	// Device Service API (DTO + Feign-клиент) — (JAR из Nexus)
-	implementation("ru.dkalchenko:device-service-api:${versions["deviceServiceApiVersion"]}")
+	// Device Service API (DTO + Feign-клиент) — используем локальный модуль в рамках монорепозитория.
+	implementation(project(":device-service-api"))
 
 	// AVRO SCHEMAS (JAR из Nexus)
 	implementation("ru.dkalchenko:iot-avro-schemas:${versions["iotAvroSchemasVersion"]}")
@@ -143,34 +143,17 @@ tasks.bootRun {
 	}
 }
 
-// Конфигурация для извлечения OpenAPI-спецификации из JAR зависимости device-service-api (без транзитивов)
-val openApiSpecConfig by configurations.creating {
-	isTransitive = false
-}
-dependencies {
-	openApiSpecConfig("ru.dkalchenko:device-service-api:${versions["deviceServiceApiVersion"]}")
-}
-
-val openApiExtractDir = layout.buildDirectory.dir("openapi-extracted")
-
-tasks.register<Copy>("extractOpenApiSpec") {
-	description = "Извлекает OpenAPI-спецификацию из JAR device-service-api"
-	from(zipTree(openApiSpecConfig.singleFile))
-	into(openApiExtractDir)
-	include("openapi/device-api.yaml")
-}
-
 val openApiOutputDir = file("build/generated/sources/openapi/server")
-// Путь к спецификации после извлечения (extractOpenApiSpec должен выполниться первым)
-val openApiSpecPath = file("build/openapi-extracted/openapi/device-api.yaml").absolutePath
-
-tasks.named("openApiGenerate") {
-	dependsOn(tasks["extractOpenApiSpec"])
+val extractDeviceApiSpec by tasks.registering(Copy::class) {
+	dependsOn(":device-service-api:processResources")
+	from(project(":device-service-api").layout.projectDirectory.file("src/main/resources/openapi/device-api.yaml"))
+	rename { "device-api.yaml" }
+	into(layout.buildDirectory.dir("openapi-spec/device-service-api"))
 }
 
 openApiGenerate {
 	generatorName.set("spring")
-	inputSpec.set(openApiSpecPath)
+	inputSpec.set(layout.buildDirectory.file("openapi-spec/device-service-api/device-api.yaml").map { it.asFile.absolutePath })
 	outputDir.set(openApiOutputDir.absolutePath)
 	apiPackage.set("ru.dkalchenko.device.api.server")
 	modelPackage.set("ru.dkalchenko.device.api.model")
@@ -192,8 +175,13 @@ openApiGenerate {
 		"Device" to "ru.dkalchenko.device.api.model.Device",
 		"DeviceRequest" to "ru.dkalchenko.device.api.model.DeviceRequest",
 		"CreateResponse" to "ru.dkalchenko.device.api.model.CreateResponse",
-		"MessageResponse" to "ru.dkalchenko.device.api.model.MessageResponse"
+		"MessageResponse" to "ru.dkalchenko.device.api.model.MessageResponse",
+		"TargetVersionRequest" to "ru.dkalchenko.device.api.model.TargetVersionRequest",
+		"ConflictError" to "ru.dkalchenko.device.api.model.ConflictError"
 	))
+}
+tasks.named("openApiGenerate") {
+	dependsOn(extractDeviceApiSpec)
 }
 
 // Подключаем только серверный API (controller, delegate, Api); модели используем из зависимости device-service-api

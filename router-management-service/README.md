@@ -6,31 +6,32 @@ gRPC API для управления роутерами: регистрация 
 
 - Go 1.25+ (см. `go.mod`)
 - PostgreSQL 17 (или совместимая)
-- Для перегенерации proto: `protoc`, `protoc-gen-go`, `protoc-gen-go-grpc` — либо [Buf](https://buf.build/docs/) (`buf generate` из корня сервиса, см. `buf.yaml` / `buf.gen.yaml`)
+- Контракт gRPC публикуется модулем `router-management-api` в Nexus как JAR (единый источник истины).
+- Для перегенерации Go: `protoc`, `protoc-gen-go`, `protoc-gen-go-grpc` (цель `make generate` сама скачает proto из Nexus).
 
 ## Конфигурация
 
 При старте подгружается `.env` из текущей директории (если есть), затем YAML по `CONFIG_PATH` и переопределение ENV.
 
-| ENV                                  | Описание                                                                                  | По умолчанию              |
-|--------------------------------------|-------------------------------------------------------------------------------------------|---------------------------|
-| `CONFIG_PATH`                        | Путь к YAML-конфигу                                                                       | —                         |
-| `GRPC_PORT`                          | Порт gRPC                                                                                 | 50051                     |
-| `HTTP_PORT`                          | Порт HTTP (health/ready/metrics)                                                          | 8080                      |
-| `POSTGRES_HOST`                      | Хост PostgreSQL                                                                           | localhost                 |
-| `POSTGRES_PORT`                      | Порт PostgreSQL                                                                           | 5432                      |
-| `POSTGRES_USER`                      | Пользователь                                                                              | postgres                  |
-| `POSTGRES_PASSWORD`                  | Пароль                                                                                    | —                         |
-| `POSTGRES_DB`                        | Имя БД                                                                                    | router_management         |
-| `POSTGRES_SSLMODE`                   | Режим SSL (`disable`, `require`, …)                                                       | disable                   |
-| `SCHEDULER_ENABLED`                  | Планировщик зависших команд (`true`/`false`)                                              | false                     |
-| `SCHEDULER_CRON`                     | Cron (5 полей, без секунд)                                                                | `*/1 * * * *`             |
-| `SENT_TIMEOUT_MINUTES`               | Через сколько минут после `sent_at` помечать команду FAILED                               | 10                        |
-| `KEYCLOAK_ISSUER_URI`                | Issuer Keycloak (OIDC), например `http://host.docker.internal:8080/realms/master`         | —                         |
+| ENV                                  | Описание                                                                                                  | По умолчанию              |
+|--------------------------------------|-----------------------------------------------------------------------------------------------------------|---------------------------|
+| `CONFIG_PATH`                        | Путь к YAML-конфигу                                                                                       | —                         |
+| `GRPC_PORT`                          | Порт gRPC                                                                                                 | 50051                     |
+| `HTTP_PORT`                          | Порт HTTP (health/ready/metrics)                                                                          | 8080                      |
+| `POSTGRES_HOST`                      | Хост PostgreSQL                                                                                           | localhost                 |
+| `POSTGRES_PORT`                      | Порт PostgreSQL                                                                                           | 5432                      |
+| `POSTGRES_USER`                      | Пользователь                                                                                              | postgres                  |
+| `POSTGRES_PASSWORD`                  | Пароль                                                                                                    | —                         |
+| `POSTGRES_DB`                        | Имя БД                                                                                                    | router_management         |
+| `POSTGRES_SSLMODE`                   | Режим SSL (`disable`, `require`, …)                                                                       | disable                   |
+| `SCHEDULER_ENABLED`                  | Планировщик зависших команд (`true`/`false`)                                                              | false                     |
+| `SCHEDULER_CRON`                     | Cron (5 полей, без секунд)                                                                                | `*/1 * * * *`             |
+| `SENT_TIMEOUT_MINUTES`               | Через сколько минут после `sent_at` помечать команду FAILED                                               | 10                        |
+| `KEYCLOAK_ISSUER_URI`                | Issuer Keycloak (OIDC), например `http://host.docker.internal:8080/realms/master`                         | —                         |
 | `AUTH_CLIENT_ID`                     | OAuth2 `client_id`, для которого выдан токен: в JWT проверяются `aud` и/или `azp` (Keycloak access token) | —                         |
-| `AUTH_ENABLED`                       | Проверка JWT (`true`/`false`). При заданном `KEYCLOAK_ISSUER_URI` по умолчанию включается | —                         |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Полный URL OTLP HTTP для трейсов, например `http://alloy:4318/v1/traces`                  | —                         |
-| `OTEL_SERVICE_NAME`                  | Имя сервиса в трейсах                                                                     | router-management-service |
+| `AUTH_ENABLED`                       | Проверка JWT (`true`/`false`). При заданном `KEYCLOAK_ISSUER_URI` по умолчанию включается                 | —                         |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Полный URL OTLP HTTP для трейсов, например `http://alloy:4318/v1/traces`                                  | —                         |
+| `OTEL_SERVICE_NAME`                  | Имя сервиса в трейсах                                                                                     | router-management-service |
 
 В YAML см. `config.example.yaml`: `server`, `postgres`, `scheduler`, `auth`, секция `telemetry` (опционально: `otlp_traces_endpoint`, `service_name`).
 
@@ -95,16 +96,24 @@ go test -tags=integration ./integration/ -v -count=1
 
 ## Регенерация proto
 
-После изменения `api/proto/api/v1/router_management.proto`:
+`make generate` скачивает `router-management-api` из Nexus, извлекает `proto/api/v1/router_management.proto` в локальный кэш `.proto-cache/` и регенерирует Go-код.
+
+Базовый запуск:
 
 ```bash
 make generate
 ```
 
-или вручную:
+При необходимости можно переопределить источник/версию:
 
 ```bash
-protoc --go_out=. --go_opt=module=router-management-service --go-grpc_out=. --go-grpc_opt=module=router-management-service api/proto/api/v1/router_management.proto
+make generate NEXUS_URL=http://localhost:8082/repository/maven-releases ROUTER_API_VERSION=1.0.0 NEXUS_USER=admin NEXUS_PASSWORD=admin
 ```
 
-Альтернатива: из корня сервиса `buf generate` (при установленном Buf), согласно `buf.yaml` / `buf.gen.yaml`.
+Сгенерированные Go-файлы попадают в `api/proto/api/v1/` этого сервиса (см. `go_package` в proto).
+
+Очистка локального кэша скачанного артефакта:
+
+```bash
+make clean-proto-cache
+```

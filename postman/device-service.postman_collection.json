@@ -1,70 +1,14 @@
 {
   "info": {
     "_postman_id": "b6711266-7135-4c59-96ca-1b6bb28f7398",
-    "name": "IoT-platform",
+    "name": "device-service",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "48910547",
     "_collection_link": "https://go.postman.co/collection/48910547-b6711266-7135-4c59-96ca-1b6bb28f7398?source=collection_link"
   },
   "item": [
     {
-      "name": "0) Генерация событий без дубликатов",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "raw",
-          "raw": "{\r\n    \"eventsAmt\": 100\r\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
-        "url": {
-          "raw": "{{SIMPLE_EVENT_SERVICE}}/v1/events/generate",
-          "host": [
-            "{{SIMPLE_EVENT_SERVICE}}"
-          ],
-          "path": [
-            "v1",
-            "events",
-            "generate"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "0) Генерация событий с дубликатами",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "raw",
-          "raw": "{\r\n    \"eventsAmt\": 10\r\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
-        "url": {
-          "raw": "{{SIMPLE_EVENT_SERVICE}}/v1/events/generate-with-duplicates",
-          "host": [
-            "{{SIMPLE_EVENT_SERVICE}}"
-          ],
-          "path": [
-            "v1",
-            "events",
-            "generate-with-duplicates"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "1) Получить токен тестового пользователя",
+      "name": "0) Получить токен тестового пользователя",
       "event": [
         {
           "listen": "test",
@@ -104,9 +48,9 @@
           }
         },
         "url": {
-          "raw": "{{KEYCLOAK}}/realms/master/protocol/openid-connect/token",
+          "raw": "{{keycloak_url}}/realms/master/protocol/openid-connect/token",
           "host": [
-            "{{KEYCLOAK}}"
+            "{{keycloak_url}}"
           ],
           "path": [
             "realms",
@@ -120,7 +64,7 @@
       "response": []
     },
     {
-      "name": "2) Создать устройство",
+      "name": "1) Создать устройство",
       "event": [
         {
           "listen": "test",
@@ -158,9 +102,9 @@
           }
         },
         "url": {
-          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices",
+          "raw": "{{device-service_lb_url}}/v1/devices",
           "host": [
-            "{{DEVICE_SERVICE_LB}}"
+            "{{device-service_lb_url}}"
           ],
           "path": [
             "v1",
@@ -171,7 +115,7 @@
       "response": []
     },
     {
-      "name": "3) Прочитать устройство",
+      "name": "2) Прочитать устройство",
       "request": {
         "method": "GET",
         "header": [
@@ -182,9 +126,9 @@
           }
         ],
         "url": {
-          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "raw": "{{device-service_lb_url}}/v1/devices/{{deviceId}}",
           "host": [
-            "{{DEVICE_SERVICE_LB}}"
+            "{{device-service_lb_url}}"
           ],
           "path": [
             "v1",
@@ -196,7 +140,7 @@
       "response": []
     },
     {
-      "name": "4) Обновить устройство",
+      "name": "3) Обновить устройство",
       "request": {
         "method": "PUT",
         "header": [
@@ -216,9 +160,9 @@
           }
         },
         "url": {
-          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "raw": "{{device-service_lb_url}}/v1/devices/{{deviceId}}",
           "host": [
-            "{{DEVICE_SERVICE_LB}}"
+            "{{device-service_lb_url}}"
           ],
           "path": [
             "v1",
@@ -230,7 +174,7 @@
       "response": []
     },
     {
-      "name": "5) Удалить устройство",
+      "name": "4) Удалить устройство",
       "request": {
         "method": "DELETE",
         "header": [
@@ -241,9 +185,9 @@
           }
         ],
         "url": {
-          "raw": "{{DEVICE_SERVICE_LB}}/v1/devices/{{deviceId}}",
+          "raw": "{{device-service_lb_url}}/v1/devices/{{deviceId}}",
           "host": [
-            "{{DEVICE_SERVICE_LB}}"
+            "{{device-service_lb_url}}"
           ],
           "path": [
             "v1",
@@ -281,19 +225,15 @@
   ],
   "variable": [
     {
-      "key": "SIMPLE_EVENT_SERVICE",
+      "key": "device-service_lb_url",
       "value": ""
     },
     {
-      "key": "DEVICE_SERVICE_LB",
+      "key": "device-service_url",
       "value": ""
     },
     {
-      "key": "DEVICE_SERVICE",
-      "value": ""
-    },
-    {
-      "key": "KEYCLOAK",
+      "key": "keycloak_url",
       "value": ""
     },
     {
